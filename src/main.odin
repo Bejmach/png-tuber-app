@@ -94,19 +94,15 @@ main :: proc() {
 		//fmt.println(rig_status.state, rig_status.frame_time, rig_status.cur_frame, rig_status.cur_frame_name)
 
 		rl.BeginDrawing()
-		rl.ClearBackground(rl.BLACK)
+		rl.ClearBackground(rl.Color{0, 255, 0, 255})
 		{
-			if rig_status.state == .Talk {
-				rl.DrawRectangle(100, 100, 1080, 520, rl.WHITE)
-			}
-
-			rl.DrawText(
+			/*rl.DrawText(
 				strings.clone_to_cstring(rig_status.cur_frame_name, context.temp_allocator),
 				0,
 				0,
 				24,
 				rl.RED,
-			)
+			)*/
 
 			frame, frame_ok := get_frame(&rig_status, rig)
 

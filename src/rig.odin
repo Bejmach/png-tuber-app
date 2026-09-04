@@ -87,13 +87,11 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 			return true
 		}
 		if talk {
-			switch_state(rs, r, .Talk)
-			return true
+			return switch_state(rs, r, .Talk)
 		} else {
 			rs.idle_time += delta
 			if rs.idle_time > r.idle_time {
-				switch_state(rs, r, .Action)
-				return true
+				return switch_state(rs, r, .Action)
 			}
 		}
 	case .Action:
@@ -108,8 +106,7 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 		if !talk {
 			rs.preserve_talk_time += delta
 			if rs.preserve_talk_time > r.preserve_talk_time {
-				switch_state(rs, r, .Idle)
-				return true
+				return switch_state(rs, r, .Idle)
 			}
 		} else {
 			rs.preserve_talk_time = 0.0
@@ -210,13 +207,29 @@ update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 	}
 }
 
-switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) {
-	fmt.println(state)
-	rs.state = state
+switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed: bool) {
 	rs.idle_time = 0.0
+	
+	switch rs.state{
+	case .Idle:
+		if len(r.idle.frames) == 0{
+			return false
+		}
+	case .Talk:
+		if len(r.talk.frames) == 0{
+			return false
+		}
+	case .Action:
+		if len(r.idle_actions.frames) == 0{
+			return false
+		}
+	}
+
+	rs.state = state
 	rs.cur_frame = {0, 0}
 	next_section(rs, r, 0)
 	update_frame(rs, r)
+	return true
 }
 
 Rig :: struct {
