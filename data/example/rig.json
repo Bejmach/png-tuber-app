@@ -1,14 +1,77 @@
 {
   "frames": {
-	  "idle": {
-
-	  }
+    "idle_a_1": {
+      "src": "frames/idle_0000.png",
+      "frame_time": 0.3,
+      "random_time_offset": 0.1,
+      "random_rotation_offset": 2.5
+    },
+    "idle_a_2": {
+      "src": "frames/idle_0001.png",
+      "frame_time": 0.3,
+      "random_time_offset": 0.1,
+      "random_rotation_offset": 2.5
+    },
+    "idle_a_3": {
+      "src": "frames/idle_0002.png",
+      "frame_time": 0.3,
+      "random_time_offset": 0.1,
+      "random_rotation_offset": 2.5
+    },
+    "idle_b_1": {
+      "src": "frames/idle_0000.png",
+      "frame_time": 0.3,
+      "random_time_offset": 0.1,
+      "random_rotation_offset": 2.5
+    },
+    "idle_b_2": {
+      "src": "frames/idle_0001.png",
+      "frame_time": 0.3,
+      "random_time_offset": 0.1,
+      "random_rotation_offset": 2.5
+    },
+    "idle_b_3": {
+      "src": "frames/idle_0002.png",
+      "frame_time": 0.3,
+      "random_time_offset": 0.1,
+      "random_rotation_offset": 2.5
+    }
   },
   "idle": {
-	"frames": [["idle"]]
+    "frames": [
+      [
+        "idle_a_1",
+        "idle_a_2",
+        "idle_a_3"
+      ],
+      [
+        "idle_b_1",
+        "idle_b_2",
+        "idle_b_3"
+      ]
+    ]
   },
   "idle_actions": {},
-  "idle_time": 15.0,
-  "talking": {},
-  "blink_time": 10.0
+  "talk": {
+    "frames": [
+      [
+        "talk_a_1",
+        "talk_a_2",
+        "talk_a_3"
+      ],
+      [
+        "talk_b_1",
+        "talk_b_2",
+        "talk_b_3"
+      ]
+    ],
+    "randomise": true
+  },
+  "idle_time": 30.0,
+  "blink_time": 10.0,
+  "preserve_talk_time": 0.5,
+  "default_frame_time": 0.3,
+  "window_anchor": "Bottom_Right",
+  "rotation_anchor": "Center_Center",
+  "position_offset": [-20, -20]
 }
