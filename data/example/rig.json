@@ -1,0 +1,14 @@
+{
+  "frames": {
+	  "idle": {
+
+	  }
+  },
+  "idle": {
+	"frames": [["idle"]]
+  },
+  "idle_actions": {},
+  "idle_time": 15.0,
+  "talking": {},
+  "blink_time": 10.0
+}

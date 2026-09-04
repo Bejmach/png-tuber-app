@@ -4,6 +4,7 @@ import "base:runtime"
 import "core:fmt"
 import "core:math"
 import "core:os"
+import "core:mem"
 
 import ma "vendor:miniaudio"
 import rl "vendor:raylib"
@@ -48,6 +49,22 @@ analyze_audio :: proc() {
 }
 
 main :: proc() {
+	when ODIN_DEBUG {
+		track: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&track, context.allocator)
+		context.allocator = mem.tracking_allocator(&track)
+
+		defer {
+			if len(track.allocation_map) > 0 {
+				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
+				for _, entry in track.allocation_map {
+					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
+				}
+			}
+			mem.tracking_allocator_destroy(&track)
+		}
+	}
+
 	// Initialize audio
 	device_config := ma.device_config_init(.capture)
 	device_config.capture.format = .f32
@@ -79,6 +96,15 @@ main :: proc() {
 
 	init_window(window)
 
+	rig, ok := load_rig("./data/example/rig.json")
+	defer {
+		delete_rig(rig)
+	}
+
+	if ok{
+		fmt.println(rig)
+	}
+
 	for window.running{
 		if rl.WindowShouldClose(){
 			window.running = false
@@ -86,7 +112,7 @@ main :: proc() {
 		}
 		analyze_audio()
 		db := 20.0 * math.log10(audio_analysis.rms)
-		fmt.println(db)
+		//fmt.println(db)
 
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.BLACK)

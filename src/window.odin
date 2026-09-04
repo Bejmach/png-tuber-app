@@ -9,18 +9,6 @@ Window :: struct {
 	running:       bool,
 }
 
-WindowAnchor :: enum{
-	Top_Left,
-	Top_Center,
-	Top_Right,
-	Center_Left,
-	Center_Center,
-	Center_Right,
-	Bottom_Left,
-	Bottom_Center,
-	Bottom_Right,
-}
-
 new_window :: proc(width: i32, height: i32, title: cstring) -> ^Window{
 	w: ^Window = new(Window)
 	running := true
@@ -37,7 +25,7 @@ init_window :: proc(w: ^Window){
 	rl.InitWindow(i32(w.width), i32(w.height), w.title)
 }
 
-anchor_position :: proc(w: ^Window, anchor: WindowAnchor) -> la.Vector2f32 {
+anchor_position :: proc(w: ^Window, anchor: Anchor) -> la.Vector2f32 {
 	switch anchor{
 		case .Top_Left:
 			return {0.0, 0.0}
