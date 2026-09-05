@@ -79,6 +79,7 @@ main :: proc() {
 	fmt.println(frame_lib)
 
 	frame_rotation: f32
+	frame_tint: rl.Color = rl.WHITE
 
 	for window.running {
 		if rl.WindowShouldClose() {
@@ -111,35 +112,41 @@ main :: proc() {
 
 				if ok {
 					if frame_change {
-						frame_rotation =
-							frame.rotation +
-							rand.float32_range(
-								-frame.random_rotation_offset,
-								frame.random_rotation_offset,
-							)
+						frame_rotation = get_frame_rotation(&frame, rig)
+						frame_tint = get_frame_tint(&frame, rig)
 					}
 
-					frame_width, frame_height: f32
-					if frame.overwrite_size {
-						frame_width = frame.width
-						frame_height = frame.height
+					frame_size: [2]f32
+					if frame.overwrite_size || rig.overwrite_size {
+						frame_size = get_frame_size(&frame, rig)
 					} else {
-						frame_width = f32(texture.width)
-						frame_height = f32(texture.height)
+						frame_size = {f32(texture.width), f32(texture.height)}
 					}
 
-					position_anchor := math_anchor_position(window.width, window.height, rig.window_anchor) - math_anchor_position(frame_width, frame_height, rig.window_anchor) + {frame_width/2.0, frame_height/2.0}
-					rotation_anchor := math_anchor_position(frame_width, frame_height, rig.rotation_anchor)
+					position_anchor :=
+						math_anchor_position(window.width, window.height, rig.window_anchor) -
+						math_anchor_position(frame_size[0], frame_size[1], rig.window_anchor) +
+						{frame_size[0] / 2.0, frame_size[1] / 2.0}
+					rotation_anchor := math_anchor_position(
+						frame_size[0],
+						frame_size[1],
+						rig.rotation_anchor,
+					)
 
 					frame_position := get_position(&frame.position) + rig.position_offset
 
 					rl.DrawTexturePro(
 						texture,
 						{0, 0, f32(texture.width), f32(texture.height)},
-						{frame_position.x + position_anchor.x, frame_position.y + position_anchor.y, frame_width, frame_height},
+						{
+							frame_position.x + position_anchor.x,
+							frame_position.y + position_anchor.y,
+							frame_size[0],
+							frame_size[1],
+						},
 						rotation_anchor,
 						frame_rotation,
-						rl.WHITE,
+						frame_tint,
 					)
 				}
 			}
