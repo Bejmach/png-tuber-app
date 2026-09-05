@@ -149,13 +149,13 @@
     "randomise": true
   },
   "idle_time": 15.0,
-  "blink_time": 30.0,
+  "blink_time": 10.0,
   "preserve_talk_time": 0.5,
-  "window_anchor": "Bottom_Right",
+  "window_anchor": "Center_Center",
   "rotation_anchor": "Center_Center",
   "position_offset": [
-    -20,
-    -20
+    0,
+    0
   ],
   "overwrite_size": true,
   "width": 500,
@@ -179,15 +179,15 @@
   ],
   "random_tint_offset": [
     [
-      -25,
+      -15,
       0
     ],
     [
-      -25,
+      -15,
       0
     ],
     [
-      -25,
+      -15,
       0
     ],
     [

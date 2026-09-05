@@ -264,18 +264,18 @@ update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 }
 
 switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed: bool) {
-	rs.idle_time = 0.0
-
 	switch state {
 	case .Idle:
 		if len(r.idle.frames) == 0 {
 			return false
 		}
 	case .Talk:
+		rs.idle_time = 0.0
 		if len(r.talk.frames) == 0 {
 			return false
 		}
 	case .Action:
+		rs.idle_time = 0.0
 		if len(r.idle_actions.frames) == 0 {
 			return false
 		}
