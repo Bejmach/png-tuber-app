@@ -50,7 +50,7 @@ main :: proc() {
 	defer ma.device_stop(&device)
 
 	// Initialize window
-	window: ^Window = new_window(1280, 720, "png-tuber studio")
+	window: ^Window = new_window(500, 500, "png-tuber studio")
 	defer {
 		delete_window(window)
 	}

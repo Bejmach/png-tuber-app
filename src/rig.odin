@@ -82,10 +82,6 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 
 	switch rs.state {
 	case .Idle:
-		if rs.frame_time < 0.0 {
-			next_frame(rs, r)
-			return true
-		}
 		if talk {
 			return switch_state(rs, r, .Talk)
 		} else {
@@ -93,11 +89,21 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 			if rs.idle_time > r.idle_time {
 				return switch_state(rs, r, .Action)
 			}
+			if rs.frame_time < 0.0 {
+				next_frame(rs, r)
+				return true
+			}
 		}
+
 	case .Action:
-		if rs.frame_time < 0.0 {
-			//next_frame()
+		if talk {
+			return switch_state(rs, r, .Talk)
 		}
+		if rs.frame_time < 0.0 {
+			next_frame(rs, r)
+			return true
+		}
+
 	case .Talk:
 		if rs.frame_time < 0.0 {
 			next_frame(rs, r)
@@ -140,6 +146,15 @@ next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 		}
 		update_frame(rs, r)
 	case .Action:
+		if len(r.idle_actions.frames) == 0 {
+			break
+		}
+		rs.cur_frame[1] += 1
+		rig_section := r.idle_actions.frames[rs.cur_frame[0]]
+		if rs.cur_frame[1] >= len(rig_section) {
+			switch_state(rs, r, .Idle)
+		}
+		update_frame(rs, r)
 	}
 }
 
@@ -174,6 +189,11 @@ next_section :: proc(rs: ^RigStatus, r: ^Rig, move_by: uint = 1) {
 			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.talk.frames)
 		}
 	case .Action:
+		if len(r.idle_actions.frames) == 0 {
+			break
+		}
+		rs.cur_frame[0] = rand.uint_range(0, len(r.idle_actions.frames))
+		
 	}
 }
 
@@ -204,23 +224,34 @@ update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 			rs.frame_time = r.default_frame_time
 		}
 	case .Action:
+		if len(r.idle_actions.frames) == 0 {
+			break
+		}
+		rs.cur_frame_name = r.idle_actions.frames[rs.cur_frame[0]][rs.cur_frame[1]]
+		frame, ok := r.frames[rs.cur_frame_name]
+
+		if ok {
+			rs.frame_time = get_frame_time(&frame)
+		} else {
+			rs.frame_time = r.default_frame_time
+		}
 	}
 }
 
 switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed: bool) {
 	rs.idle_time = 0.0
-	
-	switch rs.state{
+
+	switch state {
 	case .Idle:
-		if len(r.idle.frames) == 0{
+		if len(r.idle.frames) == 0 {
 			return false
 		}
 	case .Talk:
-		if len(r.talk.frames) == 0{
+		if len(r.talk.frames) == 0 {
 			return false
 		}
 	case .Action:
-		if len(r.idle_actions.frames) == 0{
+		if len(r.idle_actions.frames) == 0 {
 			return false
 		}
 	}
