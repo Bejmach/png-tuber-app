@@ -77,8 +77,13 @@ default_rig_status :: proc() -> RigStatus {
 }
 
 process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change: bool) {
+	if r == nil {
+		return false
+	}
+
 	rs.frame_time -= delta
 	rs.blink_time += delta
+
 	db := get_db()
 
 	talk := db > -50
@@ -92,7 +97,7 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 			if rs.idle_time > r.idle_time {
 				return switch_state(rs, r, .Action)
 			}
-			if rs.blink_time > r.blink_time{
+			if rs.blink_time > r.blink_time {
 				rs.blink_time = 0
 				return switch_state(rs, r, .Blink)
 			}
@@ -183,11 +188,11 @@ next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 	}
 }
 
-get_frame :: proc(rs: ^RigStatus, r: ^Rig) -> (return_frame: Frame, ok: bool) {
-	frame, ok2 := r.frames[rs.cur_frame_name]
+get_frame :: proc(rs: ^RigStatus, r: ^Rig) -> (return_frame: ^Frame, ok: bool) {
+	ok2 := rs.cur_frame_name in r.frames
 
 	if ok2 {
-		return frame, true
+		return &r.frames[rs.cur_frame_name], true
 	}
 	return {}, false
 
@@ -344,6 +349,21 @@ get_frame_size :: proc(f: ^Frame, r: ^Rig) -> [2]f32 {
 		return {r.width, r.height}
 	}
 	return {f.width, f.height}
+}
+
+get_rig_size :: proc(r: ^Rig) -> [2]f32 {
+	biggest: [2]f32 = {0.0, 0.0}
+	for _, &frame in r.frames {
+		size: [2]f32 = get_frame_size(&frame, r)
+		if size.x > biggest.x{
+			biggest.x = size.x
+		}
+		if size.y > biggest.y{
+			biggest.y = size.y
+		}
+	}
+
+	return biggest
 }
 
 get_frame_time :: proc(f: ^Frame, r: ^Rig) -> f32 {

@@ -11,6 +11,10 @@ import "core:strings"
 import ma "vendor:miniaudio"
 import rl "vendor:raylib"
 
+WINDOW_WIDTH: i32 = 800
+WINDOW_HEIGHT: i32 = 600
+WINDOW_TITLE: cstring = "png-tuber studio"
+
 main :: proc() {
 	when ODIN_DEBUG {
 		track: mem.Tracking_Allocator
@@ -50,16 +54,12 @@ main :: proc() {
 	defer ma.device_stop(&device)
 
 	// Initialize window
-	window: ^Window = new_window(500, 500, "png-tuber studio")
-	defer {
-		delete_window(window)
-	}
 
-	rl.SetConfigFlags(rl.ConfigFlags{.VSYNC_HINT})
+	rl.SetConfigFlags(rl.ConfigFlags{.VSYNC_HINT, .WINDOW_RESIZABLE})
 
-	init_window(window)
+	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
 
-	rig, ok := load_rig("./data/example")
+	/*rig, ok := load_rig("./data/example")
 	defer {
 		delete_rig(rig)
 	}
@@ -76,80 +76,33 @@ main :: proc() {
 
 	load_textures(&frame_lib, rig)
 
-	fmt.println(frame_lib)
+	fmt.println(frame_lib)*/
 
-	frame_rotation: f32
-	frame_tint: rl.Color = rl.WHITE
+	app: ^App = new_app()
+	defer {
+		delete_app(app)
+	}
 
-	for window.running {
+	app_command(app, .Load_Rig, "./data/example")
+	app_command(app, .Change_Scene, "Png_Tuber")
+
+	for app.running {
 		if rl.WindowShouldClose() {
-			window.running = false
+			app.running = false
 			break
 		}
-		analyze_audio()
+		if !app.muted {
+			analyze_audio()
+		}
+	
+		delta := rl.GetFrameTime() * app.time_speed
 
-		delta := rl.GetFrameTime()
-
-		frame_change := process_rig_status(&rig_status, rig, delta)
-
-		//fmt.println(rig_status.state, rig_status.frame_time, rig_status.cur_frame, rig_status.cur_frame_name)
+		app_process(app, delta)
 
 		rl.BeginDrawing()
-		rl.ClearBackground(rl.Color{0, 255, 0, 255})
+		rl.ClearBackground(app.settings.background_color)
 		{
-			/*rl.DrawText(
-				strings.clone_to_cstring(rig_status.cur_frame_name, context.temp_allocator),
-				0,
-				0,
-				24,
-				rl.RED,
-			)*/
-
-			frame, frame_ok := get_frame(&rig_status, rig)
-
-			if frame_ok {
-				texture, ok := frame_lib.frames[frame.src]
-
-				if ok {
-					if frame_change {
-						frame_rotation = get_frame_rotation(&frame, rig)
-						frame_tint = get_frame_tint(&frame, rig)
-					}
-
-					frame_size: [2]f32
-					if frame.overwrite_size || rig.overwrite_size {
-						frame_size = get_frame_size(&frame, rig)
-					} else {
-						frame_size = {f32(texture.width), f32(texture.height)}
-					}
-
-					position_anchor :=
-						math_anchor_position(window.width, window.height, rig.window_anchor) -
-						math_anchor_position(frame_size[0], frame_size[1], rig.window_anchor) +
-						{frame_size[0] / 2.0, frame_size[1] / 2.0}
-					rotation_anchor := math_anchor_position(
-						frame_size[0],
-						frame_size[1],
-						rig.rotation_anchor,
-					)
-
-					frame_position := get_position(&frame.position) + rig.position_offset
-
-					rl.DrawTexturePro(
-						texture,
-						{0, 0, f32(texture.width), f32(texture.height)},
-						{
-							frame_position.x + position_anchor.x,
-							frame_position.y + position_anchor.y,
-							frame_size[0],
-							frame_size[1],
-						},
-						rotation_anchor,
-						frame_rotation,
-						frame_tint,
-					)
-				}
-			}
+			app_draw(app)
 		}
 		rl.EndDrawing()
 
