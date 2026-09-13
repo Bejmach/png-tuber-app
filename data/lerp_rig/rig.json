@@ -1,0 +1,70 @@
+{
+	"textures": {
+		"idle_1": {
+			"src": "textures/texture_1.png",
+			"time": 0.5,
+			"transform": {
+				"lerp_mode": "SmoothStep",
+				"position": [0.0, 0.0],
+				"width": 256,
+				"height": 256,
+				"rotation": 0.0
+			}
+		},
+		"idle_2": {
+			"src": "textures/texture_1.png",
+			"time": 0.5,
+			"transform": {
+				"lerp_mode": "SmoothStep",
+				"position": [0.0, 50.0],
+				"width": 256,
+				"height": 256,
+				"rotation": 0.0
+			}
+		},
+		"talk_1": {
+			"src": "textures/texture_1.png",
+			"time": 1,
+			"transform": {
+				"lerp_mode": "SmoothStep",
+				"position": [0.0, 0.0],
+				"width": 256,
+				"height": 256,
+				"rotation": 0.0
+			}
+		},
+		"talk_2": {
+			"src": "textures/texture_1.png",
+			"time": 0.0,
+			"transform": {
+				"lerp_mode": "Const",
+				"position": [0.0, 0.0],
+				"width": 256,
+				"height": 256,
+				"rotation": 360.0
+			}
+		}
+	},
+	"idle": {
+		"section": {
+			"textures": [
+				"idle_1",
+				"idle_2"
+			]
+		}
+	},
+	"talk": {
+		"section": {
+			"textures": [
+				"talk_1",
+				"talk_2"
+			]
+		}
+	},
+	"idle_time": 15.0,
+	"window_anchor": "Top_Left",
+	"window_anchor_offset": [0, 0],
+	"rotation_anchor": "Bottom_Right",
+	"rotation_anchor_offset": [0, 0],
+	"preserve_talk_time": 0.5
+}

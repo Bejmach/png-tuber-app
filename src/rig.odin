@@ -12,21 +12,193 @@ import "core:path/filepath"
 import "core:strings"
 import rl "vendor:raylib"
 
-FrameLib :: struct {
-	frames: map[string]rl.Texture2D,
+LerpMode :: enum {
+	Constant,
+	Linear,
+	Sin,
+	SmoothStep,
 }
 
-delete_frame_lib :: proc(fl: ^FrameLib) {
-	for _, value in fl.frames {
+RigState :: enum {
+	Idle,
+	//Blink,
+	Talk,
+	Action,
+}
+
+TextureLib :: struct {
+	textures: map[string]rl.Texture2D,
+}
+
+Rig :: struct {
+	textures:               map[string]Texture,
+	idle:                   AnimationData,
+	//blink:              AnimationData,
+	idle_actions:           AnimationData,
+	idle_time:              f32,
+	talk:                   AnimationData,
+	//blink_time:         f32,
+	window_anchor:          Anchor,
+	window_anchor_offset:   la.Vector2f32,
+	rotation_anchor:        Anchor,
+	rotation_anchor_offset: la.Vector2f32,
+	position_offset:        la.Vector2f32,
+	rotation_offset:        la.Vector2f32,
+	preserve_talk_time:     f32,
+	rig_path:               string,
+}
+
+Texture :: struct {
+	src:            string,
+	time:           f32,
+	transform:      Transformer,
+	overwrite_tint: bool, // Prevents having default tint as black with alpha 0
+	tint:           rl.Color,
+}
+
+delete_texture :: proc(t: ^Texture) {
+	delete(t.src)
+}
+
+Transformer :: struct {
+	lerp_mode:     LerpMode, //
+	position:      la.Vector2f32,
+	width, height: f32,
+	rotation:      f32,
+}
+
+lerp_transformers :: proc(t1: ^Transformer, t2: ^Transformer, f: f32) -> Transformer {
+	lerp_mode := t1.lerp_mode
+
+	nt: Transformer // new transormer
+
+	switch lerp_mode {
+	case .Constant:
+		nt.position = t1.position
+		nt.rotation = t1.rotation
+		nt.width = t1.width
+		nt.height = t1.height
+	case .Linear:
+		nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * f)
+		nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * f)
+		nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * f)
+		nt.width = t1.width + ((t2.width - t1.width) * f)
+		nt.height = t1.height + ((t2.height - t1.height) * f)
+	case .Sin:
+		nf := la.sin(f * la.PI / 2.0) // new factor
+		nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * nf)
+		nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * nf)
+		nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * nf)
+		nt.width = t1.width + ((t2.width - t1.width) * nf)
+		nt.height = t1.height + ((t2.height - t1.height) * nf)
+	case .SmoothStep:
+		nf := f32(math.smoothstep(0.0, 1.0, f64(f)))
+		nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * nf)
+		nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * nf)
+		nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * nf)
+		nt.width = t1.width + ((t2.width - t1.width) * nf)
+		nt.height = t1.height + ((t2.height - t1.height) * nf)
+	}
+
+
+	return nt
+}
+
+RigStatus :: struct {
+	state:              RigState,
+	frame_time:         f32,
+	idle_time:          f32,
+	//blink_time:         f32,
+	cur_frame:          uint,
+	preserve_talk_time: f32,
+}
+
+AnimationSection :: struct {
+	textures: []string,
+}
+
+delete_anition_section :: proc(as: ^AnimationSection) {
+	for texture in as.textures {
+		delete(texture)
+	}
+	delete(as.textures)
+}
+
+AnimationData :: struct {
+	section:   AnimationSection,
+	randomise: bool,
+}
+
+delete_animation_data :: proc(ad: ^AnimationData) {
+	delete_anition_section(&ad.section)
+}
+
+load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
+	path, path_err := filepath.join({directory_path, "rig.json"})
+	defer {
+		if path_err == nil {
+			delete(path)
+		}
+	}
+
+	if !os.exists(path) {
+		fmt.eprintfln("File %s does not exist", path)
+		return nil, false
+	}
+
+	data, err := os.read_entire_file(path, context.allocator)
+	defer {
+		if err == nil {
+			delete(data)
+		}
+	}
+
+
+	if err != nil {
+		fmt.eprintln("Failed to read file")
+		return nil, false
+	}
+
+	rig = new(Rig)
+	unmarshal_err := json.unmarshal(data, rig)
+	if unmarshal_err == nil {
+		rig.rig_path = directory_path
+		return rig, true
+	} else {
+		delete_rig(rig)
+		fmt.eprintln("Failed to unmarshal JSON", unmarshal_err)
+	}
+
+	return nil, false
+}
+
+delete_rig :: proc(rig: ^Rig) {
+	if rig != nil {
+		for key, &value in rig.textures {
+			delete_texture(&value)
+			delete(key)
+		}
+		delete(rig.textures)
+
+		delete_animation_data(&rig.idle_actions)
+		delete_animation_data(&rig.talk)
+		delete_animation_data(&rig.idle)
+
+		free(rig)
+	}
+}
+
+delete_frame_lib :: proc(tl: ^TextureLib) {
+	for _, value in tl.textures {
 		//no need to delete key, because Rig handles that already
 		rl.UnloadTexture(value)
 	}
-	delete(fl.frames)
+	delete(tl.textures)
 }
 
-load_textures :: proc(fl: ^FrameLib, r: ^Rig) {
-	for key, frame in r.frames {
-		ok := frame.src in fl.frames
+load_textures :: proc(tl: ^TextureLib, r: ^Rig) {
+	for key, frame in r.textures {
+		ok := frame.src in tl.textures
 		if ok {
 			continue
 		}
@@ -51,29 +223,63 @@ load_textures :: proc(fl: ^FrameLib, r: ^Rig) {
 		path_clone := strings.clone_to_cstring(path)
 		defer delete(path_clone)
 
-		fl.frames[frame.src] = rl.LoadTexture(path_clone)
+		tl.textures[frame.src] = rl.LoadTexture(path_clone)
 	}
 }
 
-RigState :: enum {
-	Idle,
-	Blink,
-	Talk,
-	Action,
-}
-
-RigStatus :: struct {
-	state:              RigState,
-	frame_time:         f32,
-	idle_time:          f32,
-	blink_time:         f32,
-	cur_frame:          [2]uint,
-	cur_frame_name:     string,
-	preserve_talk_time: f32,
-}
-
 default_rig_status :: proc() -> RigStatus {
-	return RigStatus{.Idle, 0.0, 0.0, 0.0, {0, 0}, "", 0.0}
+	return RigStatus{.Idle, 0.0, 0.0, 0, 0.0}
+}
+
+get_texture_factor :: proc(
+	r: ^Rig,
+	state: RigState,
+	frame: uint,
+	remaining_frame_time: f32,
+) -> f32 {
+	texture, ok := get_texture(r, state, frame)
+	if ok {
+		return 1.0 - (remaining_frame_time / texture.time)
+	}
+
+	return 0.0
+}
+
+// loops back to the begining if frame larger than len
+get_texture :: proc(r: ^Rig, state: RigState, frame: uint) -> (texture: ^Texture, ok: bool) {
+	frame_name: string
+	switch state {
+	case .Idle:
+		idle_len := len(r.idle.section.textures)
+		if idle_len == 0 {
+			return nil, false
+		}
+		frame := frame % uint(idle_len)
+		frame_name = r.idle.section.textures[frame]
+	case .Talk:
+		talk_len := len(r.talk.section.textures)
+		if talk_len == 0 {
+			return nil, false
+		}
+		frame := frame % uint(talk_len)
+		frame_name = r.talk.section.textures[frame]
+	case .Action:
+		action_len := len(r.idle_actions.section.textures)
+		if action_len == 0 {
+			return nil, false
+		}
+		frame := frame % uint(action_len)
+		frame_name = r.idle_actions.section.textures[frame]
+	//case .Blink:
+	//	frame_name = r.blink.section.textures[frame]
+	}
+
+	ok2 := frame_name in r.textures
+
+	if ok2 {
+		return &r.textures[frame_name], true
+	}
+	return nil, false
 }
 
 process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change: bool) {
@@ -82,9 +288,9 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 	}
 
 	rs.frame_time -= delta
-	rs.blink_time += delta
+	//rs.blink_time += delta
 
-	db := get_db()
+	db := get_db() // volume decibels
 
 	talk := db > -50
 
@@ -97,36 +303,16 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 			if rs.idle_time > r.idle_time {
 				return switch_state(rs, r, .Action)
 			}
-			if rs.blink_time > r.blink_time {
-				rs.blink_time = 0
-				return switch_state(rs, r, .Blink)
-			}
 			if rs.frame_time < 0.0 {
 				next_frame(rs, r)
+				update_frame(rs, r)
 				return true
 			}
 		}
-
-	case .Action:
-		if talk {
-			return switch_state(rs, r, .Talk)
-		}
-		if rs.frame_time < 0.0 {
-			next_frame(rs, r)
-			return true
-		}
-	case .Blink:
-		if talk {
-			return switch_state(rs, r, .Talk)
-		}
-		if rs.frame_time < 0.0 {
-			next_frame(rs, r)
-			return true
-		}
-
 	case .Talk:
 		if rs.frame_time < 0.0 {
 			next_frame(rs, r)
+			update_frame(rs, r)
 			return true
 		}
 		if !talk {
@@ -137,6 +323,24 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 		} else {
 			rs.preserve_talk_time = 0.0
 		}
+	case .Action:
+		if talk {
+			return switch_state(rs, r, .Talk)
+		}
+		if rs.frame_time < 0.0 {
+			next_frame(rs, r)
+			update_frame(rs, r)
+			return true
+		}
+	/*case .Blink:
+		if talk {
+			return switch_state(rs, r, .Talk)
+		}
+		if rs.frame_time < 0.0 {
+			next_frame(rs, r)
+			return true
+		}
+	*/
 	}
 	return false
 }
@@ -144,245 +348,207 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 	switch rs.state {
 	case .Idle:
-		if len(r.idle.frames) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.idle.frames[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			next_section(rs, r)
-			rs.cur_frame[1] = 0
-		}
-		update_frame(rs, r)
-	case .Talk:
-		if len(r.talk.frames) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.talk.frames[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			next_section(rs, r)
-			rs.cur_frame[1] = 0
-		}
-		update_frame(rs, r)
-	case .Action:
-		if len(r.idle_actions.frames) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.idle_actions.frames[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			switch_state(rs, r, .Idle)
-		}
-		update_frame(rs, r)
-	case .Blink:
-		if len(r.blink.frames) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.blink.frames[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			switch_state(rs, r, .Idle)
-		}
-		update_frame(rs, r)
-	}
-}
-
-get_frame :: proc(rs: ^RigStatus, r: ^Rig) -> (return_frame: ^Frame, ok: bool) {
-	ok2 := rs.cur_frame_name in r.frames
-
-	if ok2 {
-		return &r.frames[rs.cur_frame_name], true
-	}
-	return {}, false
-
-}
-
-next_section :: proc(rs: ^RigStatus, r: ^Rig, move_by: uint = 1) {
-	switch rs.state {
-	case .Idle:
-		if len(r.idle.frames) == 0 {
-			break
-		}
-		if r.idle.randomise {
-			rs.cur_frame[0] = rand.uint_range(0, len(r.idle.frames))
-		} else {
-			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.idle.frames)
+		idle_len := len(r.idle.section.textures)
+		if idle_len > 0 {
+			rs.cur_frame = (rs.cur_frame + 1) % len(r.idle.section.textures)
 		}
 	case .Talk:
-		if len(r.talk.frames) == 0 {
-			break
-		}
-		if r.talk.randomise {
-			rs.cur_frame[0] = rand.uint_range(0, len(r.talk.frames))
-		} else {
-			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.talk.frames)
+		idle_len := len(r.talk.section.textures)
+		if idle_len > 0 {
+			rs.cur_frame = (rs.cur_frame + 1) % len(r.talk.section.textures)
 		}
 	case .Action:
-		if len(r.idle_actions.frames) == 0 {
-			break
+		idle_len := len(r.idle_actions.section.textures)
+		if idle_len > 0 {
+			rs.cur_frame = (rs.cur_frame + 1) % len(r.idle_actions.section.textures)
 		}
-		rs.cur_frame[0] = rand.uint_range(0, len(r.idle_actions.frames))
-	case .Blink:
-		if len(r.blink.frames) == 0 {
-			break
+	/*case .Blink:
+		idle_len := len(r.blink.section.textures)
+		if idle_len > 0{
+			rs.cur_frame = (rs.cur_frame + 1) % len(r.blink.section.textures)
 		}
-		rs.cur_frame[0] = rand.uint_range(0, len(r.blink.frames))
+	*/
 	}
 }
 
 update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 	switch rs.state {
 	case .Idle:
-		if len(r.idle.frames) == 0 {
+		if len(r.idle.section.textures) == 0 {
 			break
 		}
-		rs.cur_frame_name = r.idle.frames[rs.cur_frame[0]][rs.cur_frame[1]]
-		frame, ok := r.frames[rs.cur_frame_name]
+		frame_name := r.idle.section.textures[rs.cur_frame]
+		frame, ok := r.textures[frame_name]
 
-		rs.frame_time = get_frame_time(&frame, r)
+		rs.frame_time = frame.time
 	case .Talk:
-		if len(r.talk.frames) == 0 {
+		if len(r.talk.section.textures) == 0 {
 			break
 		}
-		rs.cur_frame_name = r.talk.frames[rs.cur_frame[0]][rs.cur_frame[1]]
-		frame, ok := r.frames[rs.cur_frame_name]
+		frame_name := r.talk.section.textures[rs.cur_frame]
+		frame, ok := r.textures[frame_name]
 
-		rs.frame_time = get_frame_time(&frame, r)
+		rs.frame_time = frame.time
 	case .Action:
-		if len(r.idle_actions.frames) == 0 {
+		if len(r.idle_actions.section.textures) == 0 {
 			break
 		}
-		rs.cur_frame_name = r.idle_actions.frames[rs.cur_frame[0]][rs.cur_frame[1]]
-		frame, ok := r.frames[rs.cur_frame_name]
+		frame_name := r.idle_actions.section.textures[rs.cur_frame]
+		frame, ok := r.textures[frame_name]
 
-		rs.frame_time = get_frame_time(&frame, r)
-	case .Blink:
-		if len(r.blink.frames) == 0 {
+		rs.frame_time = frame.time
+	/*case .Blink:
+		if len(r.blink.section.textures) == 0 {
 			break
 		}
-		rs.cur_frame_name = r.blink.frames[rs.cur_frame[0]][rs.cur_frame[1]]
-		frame, ok := r.frames[rs.cur_frame_name]
+		rs.cur_frame_name = r.blink.textures[rs.cur_frame[0]][rs.cur_frame[1]]
+		frame, ok := r.textures[rs.cur_frame_name]
 
 		rs.frame_time = get_frame_time(&frame, r)
+	*/
 	}
 }
 
 switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed: bool) {
 	switch state {
 	case .Idle:
-		if len(r.idle.frames) == 0 {
+		if len(r.idle.section.textures) == 0 {
 			return false
 		}
 	case .Talk:
 		rs.idle_time = 0.0
-		if len(r.talk.frames) == 0 {
+		if len(r.talk.section.textures) == 0 {
 			return false
 		}
 	case .Action:
 		rs.idle_time = 0.0
-		if len(r.idle_actions.frames) == 0 {
+		if len(r.idle_actions.section.textures) == 0 {
 			return false
 		}
-	case .Blink:
-		if len(r.blink.frames) == 0 {
-			return false
-		}
+	//case .Blink:
+	//	if len(r.blink.textures) == 0 {
+	//		return false
+	//	}
 	}
 
 	rs.state = state
-	rs.cur_frame = {0, 0}
-	next_section(rs, r, 0)
-	update_frame(rs, r)
+	rs.cur_frame = 0
 	return true
 }
 
-Rig :: struct {
-	frames:                 map[string]Frame,
-	idle:                   FrameData,
-	blink:                  FrameData,
-	idle_actions:           FrameData,
-	idle_time:              f32,
-	talk:                   FrameData,
-	blink_time:             f32,
-	window_anchor:          Anchor,
-	rotation_anchor:        Anchor,
-	position_offset:        la.Vector2f32,
-	preserve_talk_time:     f32,
-	overwrite_size:         bool,
-	width:                  f32,
-	height:                 f32,
-	rig_path:               string,
-	frame_time:             f32,
-	random_time_offset:     [2]f32,
-	rotation:               f32,
-	random_rotation_offset: [2]f32,
-	frame_tint:             bool,
-	tint:                   rl.Color,
-	random_tint_offset:     [4][2]i32,
+get_rig_rect :: proc(r: ^Rig) -> rl.Rectangle {
+	min_x, max_x, min_y, max_y: f32
+	for _, &frame in r.textures {
+		x, y, width, height: f32
+		x = frame.transform.position.x
+		y = frame.transform.position.y
+		width = frame.transform.width
+		height = frame.transform.height
+
+		if x < min_x {
+			min_x = x
+		}
+		if x + width > max_x {
+			max_x = x + width
+		}
+		if y < min_y {
+			min_y = y
+		}
+		if y + height > max_y {
+			max_y = y + height
+		}
+	}
+
+	return rl.Rectangle{min_x, min_y, max_x - min_x, max_y - min_y}
 }
 
-Frame :: struct {
-	src:                    string,
-	overwrite_time:         bool,
-	frame_time:             f32,
-	random_time_offset:     [2]f32,
-	position:               Position,
-	overwrite_size:         bool,
-	width:                  f32,
-	height:                 f32,
-	overwrite_rotation:     bool,
-	rotation:               f32,
-	random_rotation_offset: [2]f32,
-	overwrite_tint:         bool, // Prevents having default tint as black with alpha 0
-	tint:                   rl.Color,
-	random_tint_offset:     [4][2]i32,
+/*
+
+next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
+	switch rs.state {
+	case .Idle:
+		if len(r.idle.textures) == 0 {
+			break
+		}
+		rs.cur_frame[1] += 1
+		rig_section := r.idle.textures[rs.cur_frame[0]]
+		if rs.cur_frame[1] >= len(rig_section) {
+			next_section(rs, r)
+			rs.cur_frame[1] = 0
+		}
+		update_frame(rs, r)
+	case .Talk:
+		if len(r.talk.textures) == 0 {
+			break
+		}
+		rs.cur_frame[1] += 1
+		rig_section := r.talk.textures[rs.cur_frame[0]]
+		if rs.cur_frame[1] >= len(rig_section) {
+			next_section(rs, r)
+			rs.cur_frame[1] = 0
+		}
+		update_frame(rs, r)
+	case .Action:
+		if len(r.idle_actions.textures) == 0 {
+			break
+		}
+		rs.cur_frame[1] += 1
+		rig_section := r.idle_actions.textures[rs.cur_frame[0]]
+		if rs.cur_frame[1] >= len(rig_section) {
+			switch_state(rs, r, .Idle)
+		}
+		update_frame(rs, r)
+	case .Blink:
+		if len(r.blink.textures) == 0 {
+			break
+		}
+		rs.cur_frame[1] += 1
+		rig_section := r.blink.textures[rs.cur_frame[0]]
+		if rs.cur_frame[1] >= len(rig_section) {
+			switch_state(rs, r, .Idle)
+		}
+		update_frame(rs, r)
+	}
+}
+
+
+
+next_section :: proc(rs: ^RigStatus, r: ^Rig, move_by: uint = 1) {
+	switch rs.state {
+	case .Idle:
+		if len(r.idle.textures) == 0 {
+			break
+		}
+		if r.idle.randomise {
+			rs.cur_frame[0] = rand.uint_range(0, len(r.idle.textures))
+		} else {
+			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.idle.textures)
+		}
+	case .Talk:
+		if len(r.talk.textures) == 0 {
+			break
+		}
+		if r.talk.randomise {
+			rs.cur_frame[0] = rand.uint_range(0, len(r.talk.textures))
+		} else {
+			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.talk.textures)
+		}
+	case .Action:
+		if len(r.idle_actions.textures) == 0 {
+			break
+		}
+		rs.cur_frame[0] = rand.uint_range(0, len(r.idle_actions.textures))
+	case .Blink:
+		if len(r.blink.textures) == 0 {
+			break
+		}
+		rs.cur_frame[0] = rand.uint_range(0, len(r.blink.textures))
+	}
 }
 
 delete_frame :: proc(f: ^Frame) {
 	delete_position(&f.position)
 	delete(f.src)
-}
-
-get_frame_size :: proc(f: ^Frame, r: ^Rig) -> [2]f32 {
-	if !f.overwrite_size {
-		return {r.width, r.height}
-	}
-	return {f.width, f.height}
-}
-
-get_rig_size :: proc(r: ^Rig) -> [2]f32 {
-	biggest: [2]f32 = {0.0, 0.0}
-	for _, &frame in r.frames {
-		size: [2]f32 = get_frame_size(&frame, r)
-		if size.x > biggest.x{
-			biggest.x = size.x
-		}
-		if size.y > biggest.y{
-			biggest.y = size.y
-		}
-	}
-
-	return biggest
-}
-
-get_frame_time :: proc(f: ^Frame, r: ^Rig) -> f32 {
-	if !f.overwrite_time {
-		rand_time: f32
-		if r.random_time_offset[0] < r.random_time_offset[1] {
-			rand_time = rand.float32_range(r.random_time_offset[0], r.random_time_offset[1])
-		}
-
-		return math.max(r.frame_time + rand_time, 0)
-
-	}
-
-	rand_time: f32
-	if f.random_time_offset[0] < f.random_time_offset[1] {
-		rand_time = rand.float32_range(f.random_time_offset[0], f.random_time_offset[1])
-	}
-
-	return math.max(f.frame_time + rand_time, 0)
 }
 
 get_frame_rotation :: proc(f: ^Frame, r: ^Rig) -> f32 {
@@ -466,26 +632,14 @@ get_frame_tint :: proc(f: ^Frame, r: ^Rig) -> rl.Color {
 	}
 }
 
-FrameData :: struct {
-	frames:    [][]string,
-	randomise: bool,
-}
-
 delete_frame_data :: proc(fd: ^FrameData) {
-	for frames in fd.frames {
-		for frame in frames {
+	for textures in fd.textures {
+		for frame in textures {
 			delete(frame)
 		}
-		delete(frames)
+		delete(textures)
 	}
-	delete(fd.frames)
-}
-
-Position :: struct {
-	positions: []la.Vector2f32,
-	range_x:   [2]f32,
-	range_y:   [2]f32,
-	use_range: bool,
+	delete(fd.textures)
 }
 
 delete_position :: proc(p: ^Position) {
@@ -506,59 +660,4 @@ get_position :: proc(p: ^Position) -> la.Vector2f32 {
 	}
 	return {0, 0}
 }
-
-load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
-	path, path_err := filepath.join({directory_path, "rig.json"})
-	defer {
-		if path_err == nil {
-			delete(path)
-		}
-	}
-
-	if !os.exists(path) {
-		fmt.eprintfln("File %s does not exist", path)
-		return nil, false
-	}
-
-	data, err := os.read_entire_file(path, context.allocator)
-	defer {
-		if err == nil {
-			delete(data)
-		}
-	}
-
-
-	if err != nil {
-		fmt.eprintln("Failed to read file")
-		return nil, false
-	}
-
-	rig = new(Rig)
-	unmarshal_err := json.unmarshal(data, rig)
-	if unmarshal_err == nil {
-		rig.rig_path = directory_path
-		return rig, true
-	} else {
-		delete_rig(rig)
-		fmt.eprintln("Failed to unmarshal JSON", unmarshal_err)
-	}
-
-	return nil, false
-}
-
-delete_rig :: proc(rig: ^Rig) {
-	if rig != nil {
-		for key, &value in rig.frames {
-			delete(key)
-			delete_frame(&value)
-		}
-		delete(rig.frames)
-
-		delete_frame_data(&rig.idle)
-		delete_frame_data(&rig.idle_actions)
-		delete_frame_data(&rig.talk)
-		delete_frame_data(&rig.blink)
-
-		free(rig)
-	}
-}
+*/

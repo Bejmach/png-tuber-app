@@ -83,7 +83,7 @@ main :: proc() {
 		delete_app(app)
 	}
 
-	app_command(app, .Load_Rig, "./data/example")
+	app_command(app, .Load_Rig, "./data/lerp_rig")
 	app_command(app, .Change_Scene, "Png_Tuber")
 
 	for app.running {
