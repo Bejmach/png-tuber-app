@@ -1,0 +1,163 @@
+{
+  "frames": {
+    "face_1": {
+      "src": "face.png",
+      "time": 0.5,
+      "transform": {
+        "lerp_mode": "SmoothStep",
+        "width": 256,
+        "height": 256
+      }
+    },
+    "face_2": {
+      "src": "face.png",
+      "time": 0.5,
+      "transform": {
+        "lerp_mode": "SmoothStep",
+        "width": 256,
+        "height": 256,
+        "position": [
+          0,
+          20
+        ]
+      }
+    },
+    "ear_left_1": {
+      "src": "ear_left.png",
+      "time": 0.5,
+      "transform": {
+        "lerp_mode": "SmoothStep",
+        "width": 256,
+        "height": 256,
+        "rotation": -40
+      },
+      "volume_transforms": [
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -30
+        },
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -10,
+          "rotation": 60
+        }
+      ]
+    },
+    "ear_left_2": {
+      "src": "ear_left.png",
+      "time": 0.5,
+      "transform": {
+        "lerp_mode": "SmoothStep",
+        "width": 256,
+        "height": 256,
+        "position": [
+          0,
+          20
+        ],
+        "rotation": -40
+      },
+      "volume_transforms": [
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -30
+        },
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -10,
+          "rotation": 60
+        }
+      ]
+    },
+    "ear_right_1": {
+      "src": "ear_right.png",
+      "time": 0.5,
+      "transform": {
+        "lerp_mode": "SmoothStep",
+        "width": 256,
+        "height": 256,
+        "rotation": 40
+      },
+      "volume_transforms": [
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -30
+        },
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -10,
+          "rotation": -60
+        }
+      ]
+    },
+    "ear_right_2": {
+      "src": "ear_right.png",
+      "time": 0.5,
+      "transform": {
+        "lerp_mode": "SmoothStep",
+        "width": 256,
+        "height": 256,
+        "position": [
+          0,
+          20
+        ],
+        "rotation": 40
+      },
+      "volume_transforms": [
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -30
+        },
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -10,
+          "rotation": -60
+        }
+      ]
+    }
+  },
+  "sections": {
+    "face": {
+      "visible": true,
+      "z_index": 0,
+      "frames": [
+        "face_1",
+        "face_2"
+      ],
+      "window_anchor": "Center_Center",
+      "rotation_anchor": "Center_Center"
+    },
+    "ear_left": {
+      "visible": true,
+      "z_index": -1,
+      "frames": [
+        "ear_left_1",
+        "ear_left_2"
+      ],
+      "window_anchor": "Center_Center",
+      "rotation_anchor": "Center_Center",
+      "rotation_anchor_offset": [
+        -20,
+        -40
+      ]
+    },
+    "ear_right": {
+      "visible": true,
+      "z_index": -1,
+      "frames": [
+        "ear_right_1",
+        "ear_right_2"
+      ],
+      "window_anchor": "Center_Center",
+      "rotation_anchor": "Center_Center",
+      "rotation_anchor_offset": [
+        40,
+        -40
+      ]
+    }
+  },
+  "idle_time": 10.0,
+  "blink_time": 10.0,
+  "lerp_vt": true,
+  "vt_lerp_mode": "SmoothStep",
+  "vt_lerp_strength": 10.0
+}

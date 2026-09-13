@@ -32,6 +32,11 @@ main :: proc() {
 		}
 	}
 
+	//command := parse_command("Enable_Section( idle ); Disable_Section( talk )")
+	//defer delete_rig_commands(&command)
+
+	//fmt.println(command)
+
 	// Initialize audio
 	device_config := ma.device_config_init(.capture)
 	device_config.capture.format = .f32
@@ -83,7 +88,7 @@ main :: proc() {
 		delete_app(app)
 	}
 
-	app_command(app, .Load_Rig, "./data/lerp_rig")
+	app_command(app, .Load_Rig, "./data/multi_section")
 	app_command(app, .Change_Scene, "Png_Tuber")
 
 	for app.running {

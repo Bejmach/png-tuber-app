@@ -2,7 +2,7 @@
 
 package png_tuber
 
-import "core:crypto/_subtle"
+import "core:slice"
 import "core:encoding/json"
 import "core:fmt"
 import "core:math"
@@ -20,29 +20,19 @@ LerpMode :: enum {
 	SmoothStep,
 }
 
-RigState :: enum {
-	Idle,
-	//Blink,
-	Talk,
-	Action,
-}
-
 TextureLib :: struct {
 	textures: map[string]rl.Texture2D,
 }
 
 Rig :: struct {
 	frames:                 map[string]Frame,
-	idle:                   AnimationData,
-	//blink:              AnimationData,
-	idle_actions:           AnimationData,
+	sections:               map[string]AnimationSection,
+	on_talk:                string,
+	on_blink:               string, // only from idle
+	on_action:              string,
+	on_idle:                string, // from talk, blink or action
 	idle_time:              f32,
-	talk:                   AnimationData,
-	//blink_time:         f32,
-	window_anchor:          Anchor,
-	window_anchor_offset:   la.Vector2f32,
-	rotation_anchor:        Anchor,
-	rotation_anchor_offset: la.Vector2f32,
+	blink_time:             f32,
 	position_offset:        la.Vector2f32,
 	rotation_offset:        la.Vector2f32,
 	preserve_talk_time:     f32,
@@ -50,6 +40,23 @@ Rig :: struct {
 	vt_lerp_mode:           LerpMode,
 	vt_lerp_strength:       f32,
 	rig_path:               string,
+}
+
+AnimationSection :: struct {
+	visible: bool,
+	z_index: int,
+	frames:  []string,
+	window_anchor:          Anchor,
+	window_anchor_offset:   la.Vector2f32,
+	rotation_anchor:        Anchor,
+	rotation_anchor_offset: la.Vector2f32,
+}
+
+delete_animation_section :: proc(as: ^AnimationSection) {
+	for frame in as.frames {
+		delete(frame)
+	}
+	delete(as.frames)
 }
 
 Frame :: struct {
@@ -160,7 +167,12 @@ add_transformers :: proc(t1: ^Transformer, t2: ^Transformer) -> Transformer {
 	return nt
 }
 
-lerp_transformers :: proc(t1: ^Transformer, t2: ^Transformer, f: f32, mode: LerpMode) -> Transformer {
+lerp_transformers :: proc(
+	t1: ^Transformer,
+	t2: ^Transformer,
+	f: f32,
+	mode: LerpMode,
+) -> Transformer {
 	nt: Transformer // new transormer
 
 	switch mode {
@@ -196,33 +208,49 @@ lerp_transformers :: proc(t1: ^Transformer, t2: ^Transformer, f: f32, mode: Lerp
 }
 
 RigStatus :: struct {
-	state:              RigState,
-	frame_time:         f32,
+	is_talking:         bool,
+	frame_time:         map[string]f32,
 	idle_time:          f32,
-	//blink_time:         f32,
-	cur_frame:          uint,
+	blink_time:         f32,
+	cur_frame:          map[string]uint,
 	preserve_talk_time: f32,
+	on_talk:            []RigCommand,
+	on_blink:           []RigCommand, // only from idle
+	on_action:          []RigCommand,
+	on_idle:            []RigCommand, // from talk, blink or action
+	z_layers:           []int,
 }
 
-AnimationSection :: struct {
-	visible: bool,
-	frames:  []string,
+default_rig_status :: proc() -> RigStatus {
+	return RigStatus{false, {}, 0.0, 0.0, {}, 0.0, {}, {}, {}, {}, {}}
 }
 
-delete_anition_section :: proc(as: ^AnimationSection) {
-	for frame in as.frames {
-		delete(frame)
+prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
+	for key, _ in r.sections {
+		rs.frame_time[key] = 0.0
+		rs.cur_frame[key] = 0
 	}
-	delete(as.frames)
+
+	rs.on_talk = parse_command(r.on_talk)
+	rs.on_blink = parse_command(r.on_blink)
+	rs.on_action = parse_command(r.on_action)
+	rs.on_idle = parse_command(r.on_idle)
+
+	active_layers := make([dynamic]int)
+	for key, value in r.sections{
+		ok := slice.contains(active_layers[:], value.z_index)
+		if !ok{
+			append(&active_layers, value.z_index)
+		}
+	}
+	slice.sort(active_layers[:])
+	rs.z_layers = active_layers[:]
 }
 
-AnimationData :: struct {
-	section:   AnimationSection,
-	randomise: bool,
-}
-
-delete_animation_data :: proc(ad: ^AnimationData) {
-	delete_anition_section(&ad.section)
+delete_rig_status :: proc(rs: ^RigStatus) {
+	delete(rs.cur_frame)
+	delete(rs.frame_time)
+	delete(rs.z_layers)
 }
 
 load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
@@ -272,9 +300,11 @@ delete_rig :: proc(rig: ^Rig) {
 		}
 		delete(rig.frames)
 
-		delete_animation_data(&rig.idle_actions)
-		delete_animation_data(&rig.talk)
-		delete_animation_data(&rig.idle)
+		for key, &value in rig.sections {
+			delete_animation_section(&value)
+			delete(key)
+		}
+		delete(rig.sections)
 
 		free(rig)
 	}
@@ -319,17 +349,13 @@ load_textures :: proc(tl: ^TextureLib, r: ^Rig) {
 	}
 }
 
-default_rig_status :: proc() -> RigStatus {
-	return RigStatus{.Idle, 0.0, 0.0, 0, 0.0}
-}
-
 get_texture_factor :: proc(
 	r: ^Rig,
-	state: RigState,
+	section: string,
 	frame_id: uint,
 	remaining_frame_time: f32,
 ) -> f32 {
-	frame, ok := get_frame(r, state, frame_id)
+	frame, ok := get_frame(r, section, frame_id)
 	if ok {
 		return 1.0 - (remaining_frame_time / frame.time)
 	}
@@ -338,33 +364,16 @@ get_texture_factor :: proc(
 }
 
 // loops back to the begining if frame larger than len
-get_frame :: proc(r: ^Rig, state: RigState, frame_id: uint) -> (frame: ^Frame, ok: bool) {
-	frame_name: string
-	switch state {
-	case .Idle:
-		idle_len := len(r.idle.section.frames)
-		if idle_len == 0 {
-			return nil, false
-		}
-		frame_id := frame_id % uint(idle_len)
-		frame_name = r.idle.section.frames[frame_id]
-	case .Talk:
-		talk_len := len(r.talk.section.frames)
-		if talk_len == 0 {
-			return nil, false
-		}
-		frame_id := frame_id % uint(talk_len)
-		frame_name = r.talk.section.frames[frame_id]
-	case .Action:
-		action_len := len(r.idle_actions.section.frames)
-		if action_len == 0 {
-			return nil, false
-		}
-		frame_id := frame_id % uint(action_len)
-		frame_name = r.idle_actions.section.frames[frame_id]
-	//case .Blink:
-	//	frame_name = r.blink.section.frames[frame]
+get_frame :: proc(r: ^Rig, section_name: string, frame_id: uint) -> (frame: ^Frame, ok: bool) {
+	section, section_ok := r.sections[section_name]
+
+	if !section_ok {
+		return nil, false
 	}
+	
+	frame_id := frame_id % len(section.frames)
+
+	frame_name := section.frames[frame_id]
 
 	ok2 := frame_name in r.frames
 
@@ -374,162 +383,87 @@ get_frame :: proc(r: ^Rig, state: RigState, frame_id: uint) -> (frame: ^Frame, o
 	return nil, false
 }
 
-process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change: bool) {
+process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_changes: []string) {
 	if r == nil {
-		return false
+		return {}
 	}
 
-	rs.frame_time -= delta
-	//rs.blink_time += delta
+	global_change := false
+
+	if rs.blink_time < 0.0 {
+		rs.blink_time = r.blink_time
+		// run_command(rs.on_blink)
+		global_change = true
+	}
 
 	db := get_db() // volume decibels
-
 	talk := db > -50
 
-	switch rs.state {
-	case .Idle:
-		if talk {
-			return switch_state(rs, r, .Talk)
-		} else {
-			rs.idle_time += delta
-			if rs.idle_time > r.idle_time {
-				return switch_state(rs, r, .Action)
-			}
-			if rs.frame_time < 0.0 {
-				next_frame(rs, r)
-				update_frame(rs, r)
-				return true
-			}
-		}
-	case .Talk:
-		if rs.frame_time < 0.0 {
-			next_frame(rs, r)
-			update_frame(rs, r)
-			return true
-		}
-		if !talk {
-			rs.preserve_talk_time += delta
-			if rs.preserve_talk_time > r.preserve_talk_time {
-				return switch_state(rs, r, .Idle)
-			}
-		} else {
-			rs.preserve_talk_time = 0.0
-		}
-	case .Action:
-		if talk {
-			return switch_state(rs, r, .Talk)
-		}
-		if rs.frame_time < 0.0 {
-			next_frame(rs, r)
-			update_frame(rs, r)
-			return true
-		}
-	/*case .Blink:
-		if talk {
-			return switch_state(rs, r, .Talk)
-		}
-		if rs.frame_time < 0.0 {
-			next_frame(rs, r)
-			return true
-		}
-	*/
-	}
-	return false
-}
-
-next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
-	switch rs.state {
-	case .Idle:
-		idle_len := len(r.idle.section.frames)
-		if idle_len > 0 {
-			rs.cur_frame = (rs.cur_frame + 1) % uint(idle_len)
-		}
-	case .Talk:
-		talk_len := len(r.talk.section.frames)
-		if talk_len > 0 {
-			rs.cur_frame = (rs.cur_frame + 1) % uint(talk_len)
-		}
-	case .Action:
-		action_len := len(r.idle_actions.section.frames)
-		if action_len > 0 {
-			if rs.cur_frame == uint(action_len - 1) {
-				switch_state(rs, r, .Idle)
-			} else {
-				rs.cur_frame = (rs.cur_frame + 1) % uint(action_len)
-			}
-		}
-	/*case .Blink:
-		idle_len := len(r.blink.section.frames)
-		if idle_len > 0{
-			rs.cur_frame = (rs.cur_frame + 1) % len(r.blink.section.frames)
-		}
-	*/
-	}
-}
-
-update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
-	switch rs.state {
-	case .Idle:
-		if len(r.idle.section.frames) == 0 {
-			break
-		}
-		frame_name := r.idle.section.frames[rs.cur_frame]
-		frame, ok := r.frames[frame_name]
-
-		rs.frame_time = frame.time
-	case .Talk:
-		if len(r.talk.section.frames) == 0 {
-			break
-		}
-		frame_name := r.talk.section.frames[rs.cur_frame]
-		frame, ok := r.frames[frame_name]
-
-		rs.frame_time = frame.time
-	case .Action:
-		if len(r.idle_actions.section.frames) == 0 {
-			break
-		}
-		frame_name := r.idle_actions.section.frames[rs.cur_frame]
-		frame, ok := r.frames[frame_name]
-
-		rs.frame_time = frame.time
-	/*case .Blink:
-		if len(r.blink.section.frames) == 0 {
-			break
-		}
-		rs.cur_frame_name = r.blink.textures[rs.cur_frame[0]][rs.cur_frame[1]]
-		frame, ok := r.textures[rs.cur_frame_name]
-
-		rs.frame_time = get_frame_time(&frame, r)
-	*/
-	}
-}
-
-switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed: bool) {
-	switch state {
-	case .Idle:
-		if len(r.idle.section.frames) == 0 {
-			return false
-		}
-	case .Talk:
+	if talk {
 		rs.idle_time = 0.0
-		if len(r.talk.section.frames) == 0 {
-			return false
+		if !rs.is_talking {
+			// run_command(rs.on_talk)
+			global_change = true
 		}
-	case .Action:
-		rs.idle_time = 0.0
-		if len(r.idle_actions.section.frames) == 0 {
-			return false
+	} else {
+		rs.idle_time += delta
+		if rs.is_talking {
+			//run_command(rs.on_idle)
+			global_change = true
 		}
-	//case .Blink:
-	//	if len(r.blink.textures) == 0 {
-	//		return false
-	//	}
+
+		if rs.idle_time >= r.idle_time {
+			//run_command(rs.on_action)
+			global_change = true
+		}
 	}
 
-	rs.state = state
-	rs.cur_frame = 0
-	return true
+	rs.is_talking = talk
+
+	modyfied_sections := [dynamic]string{}
+
+	for section_name, section in r.sections {
+		if !section.visible {
+			continue
+		}
+
+		rs.frame_time[section_name] -= delta
+
+		if rs.frame_time[section_name] < 0.0 {
+			next_frame(rs, r, section_name)
+			update_frame(rs, r, section_name)
+			append(&modyfied_sections, section_name)
+			
+		} else if global_change{
+			append(&modyfied_sections, section_name)
+		}
+	}
+
+	return modyfied_sections[:]
+}
+
+next_frame :: proc(rs: ^RigStatus, r: ^Rig, section_name: string) {
+	section, section_ok := r.sections[section_name]
+
+	if !section_ok {
+		return
+	}
+
+	cur_frame := rs.cur_frame[section_name]
+	rs.cur_frame[section_name] = (cur_frame + 1) % len(section.frames)
+}
+
+update_frame :: proc(rs: ^RigStatus, r: ^Rig, section_name: string) {
+	section, section_ok := r.sections[section_name]
+
+	if !section_ok {
+		return
+	}
+
+	frame_name := r.sections[section_name].frames[rs.cur_frame[section_name]]
+	frame, ok := r.frames[frame_name]
+
+	rs.frame_time[section_name] = frame.time
 }
 
 get_rig_rect :: proc(r: ^Rig) -> rl.Rectangle {
