@@ -2,6 +2,7 @@
 
 package png_tuber
 
+import "core:crypto/_subtle"
 import "core:encoding/json"
 import "core:fmt"
 import "core:math"
@@ -31,7 +32,7 @@ TextureLib :: struct {
 }
 
 Rig :: struct {
-	textures:               map[string]Texture,
+	frames:                 map[string]Frame,
 	idle:                   AnimationData,
 	//blink:              AnimationData,
 	idle_actions:           AnimationData,
@@ -45,19 +46,25 @@ Rig :: struct {
 	position_offset:        la.Vector2f32,
 	rotation_offset:        la.Vector2f32,
 	preserve_talk_time:     f32,
+	lerp_vt:                bool,
+	vt_lerp_mode:           LerpMode,
+	vt_lerp_strength:       f32,
 	rig_path:               string,
 }
 
-Texture :: struct {
-	src:            string,
-	time:           f32,
-	transform:      Transformer,
-	overwrite_tint: bool, // Prevents having default tint as black with alpha 0
-	tint:           rl.Color,
+Frame :: struct {
+	src:               string,
+	time:              f32,
+	transform:         Transformer,
+	rand_transform:    RandTransformer,
+	volume_transforms: []VolumeTransformer, // supposed to go from quietest to loudest
+	overwrite_tint:    bool, // Prevents having default tint as black with alpha 0
+	tint:              rl.Color,
 }
 
-delete_texture :: proc(t: ^Texture) {
-	delete(t.src)
+delete_frame :: proc(f: ^Frame) {
+	delete(f.src)
+	delete(f.volume_transforms)
 }
 
 Transformer :: struct {
@@ -67,12 +74,96 @@ Transformer :: struct {
 	rotation:      f32,
 }
 
-lerp_transformers :: proc(t1: ^Transformer, t2: ^Transformer, f: f32) -> Transformer {
-	lerp_mode := t1.lerp_mode
+RandTransformer :: struct {
+	x, y, width, height, rotation: [2]f32,
+}
 
+colapse_rand_transformer :: proc(rt: ^RandTransformer) -> Transformer {
+	nt: Transformer
+
+	if rt.x[0] < rt.x[1] {
+		nt.position.x = rand.float32_range(rt.x[0], rt.x[1])
+	}
+	if rt.y[0] < rt.y[1] {
+		nt.position.y = rand.float32_range(rt.y[0], rt.y[1])
+	}
+	if rt.width[0] < rt.width[1] {
+		nt.width = rand.float32_range(rt.width[0], rt.width[1])
+	}
+	if rt.height[0] < rt.height[1] {
+		nt.height = rand.float32_range(rt.height[0], rt.height[1])
+	}
+	if rt.rotation[0] < rt.rotation[1] {
+		nt.rotation = rand.float32_range(rt.rotation[0], rt.rotation[1])
+	}
+
+	return nt
+}
+
+VolumeTransformer :: struct {
+	lerp_mode:                     LerpMode,
+	volume:                        f32, // in decibels
+	x, y, width, height, rotation: f32,
+}
+
+colapse_volume_transformer :: proc(vt: ^VolumeTransformer) -> Transformer {
+	return Transformer{vt.lerp_mode, {vt.x, vt.y}, vt.width, vt.height, vt.rotation}
+}
+
+solve_volume_transformers :: proc(vt_s: ^[]VolumeTransformer, db: f32) -> Transformer {
+	nt: Transformer
+
+	vt_s_len := len(vt_s)
+	if vt_s_len > 0 {
+		if db < vt_s[0].volume {
+			nt.position = {vt_s[0].x, vt_s[0].y}
+			nt.width = vt_s[0].width
+			nt.height = vt_s[0].height
+			nt.rotation = vt_s[0].rotation
+		}
+
+		for i := 0; i < vt_s_len - 1; i += 1 {
+			cur_vt := vt_s[i]
+			next_vt := vt_s[i + 1]
+
+			if db >= cur_vt.volume && db < next_vt.volume {
+				factor := (db - cur_vt.volume) / (next_vt.volume - cur_vt.volume)
+				t1 := colapse_volume_transformer(&cur_vt)
+				t2 := colapse_volume_transformer(&next_vt)
+
+				return lerp_transformers(&t1, &t2, factor, t1.lerp_mode)
+			}
+		}
+
+		last_vt := vt_s[vt_s_len - 1]
+		if db > last_vt.volume {
+			nt.position = {last_vt.x, last_vt.y}
+			nt.width = last_vt.width
+			nt.height = last_vt.height
+			nt.rotation = last_vt.rotation
+		}
+	}
+
+	return nt
+}
+
+add_transformers :: proc(t1: ^Transformer, t2: ^Transformer) -> Transformer {
+	nt: Transformer
+
+	nt.lerp_mode = t1.lerp_mode
+	nt.position.x = t1.position.x + t2.position.x
+	nt.position.y = t1.position.y + t2.position.y
+	nt.width = t1.width + t2.width
+	nt.height = t1.height + t2.height
+	nt.rotation = t1.rotation + t2.rotation
+
+	return nt
+}
+
+lerp_transformers :: proc(t1: ^Transformer, t2: ^Transformer, f: f32, mode: LerpMode) -> Transformer {
 	nt: Transformer // new transormer
 
-	switch lerp_mode {
+	switch mode {
 	case .Constant:
 		nt.position = t1.position
 		nt.rotation = t1.rotation
@@ -114,14 +205,15 @@ RigStatus :: struct {
 }
 
 AnimationSection :: struct {
-	textures: []string,
+	visible: bool,
+	frames:  []string,
 }
 
 delete_anition_section :: proc(as: ^AnimationSection) {
-	for texture in as.textures {
-		delete(texture)
+	for frame in as.frames {
+		delete(frame)
 	}
-	delete(as.textures)
+	delete(as.frames)
 }
 
 AnimationData :: struct {
@@ -174,11 +266,11 @@ load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
 
 delete_rig :: proc(rig: ^Rig) {
 	if rig != nil {
-		for key, &value in rig.textures {
-			delete_texture(&value)
+		for key, &value in rig.frames {
+			delete_frame(&value)
 			delete(key)
 		}
-		delete(rig.textures)
+		delete(rig.frames)
 
 		delete_animation_data(&rig.idle_actions)
 		delete_animation_data(&rig.talk)
@@ -197,7 +289,7 @@ delete_frame_lib :: proc(tl: ^TextureLib) {
 }
 
 load_textures :: proc(tl: ^TextureLib, r: ^Rig) {
-	for key, frame in r.textures {
+	for key, frame in r.frames {
 		ok := frame.src in tl.textures
 		if ok {
 			continue
@@ -234,50 +326,50 @@ default_rig_status :: proc() -> RigStatus {
 get_texture_factor :: proc(
 	r: ^Rig,
 	state: RigState,
-	frame: uint,
+	frame_id: uint,
 	remaining_frame_time: f32,
 ) -> f32 {
-	texture, ok := get_texture(r, state, frame)
+	frame, ok := get_frame(r, state, frame_id)
 	if ok {
-		return 1.0 - (remaining_frame_time / texture.time)
+		return 1.0 - (remaining_frame_time / frame.time)
 	}
 
 	return 0.0
 }
 
 // loops back to the begining if frame larger than len
-get_texture :: proc(r: ^Rig, state: RigState, frame: uint) -> (texture: ^Texture, ok: bool) {
+get_frame :: proc(r: ^Rig, state: RigState, frame_id: uint) -> (frame: ^Frame, ok: bool) {
 	frame_name: string
 	switch state {
 	case .Idle:
-		idle_len := len(r.idle.section.textures)
+		idle_len := len(r.idle.section.frames)
 		if idle_len == 0 {
 			return nil, false
 		}
-		frame := frame % uint(idle_len)
-		frame_name = r.idle.section.textures[frame]
+		frame_id := frame_id % uint(idle_len)
+		frame_name = r.idle.section.frames[frame_id]
 	case .Talk:
-		talk_len := len(r.talk.section.textures)
+		talk_len := len(r.talk.section.frames)
 		if talk_len == 0 {
 			return nil, false
 		}
-		frame := frame % uint(talk_len)
-		frame_name = r.talk.section.textures[frame]
+		frame_id := frame_id % uint(talk_len)
+		frame_name = r.talk.section.frames[frame_id]
 	case .Action:
-		action_len := len(r.idle_actions.section.textures)
+		action_len := len(r.idle_actions.section.frames)
 		if action_len == 0 {
 			return nil, false
 		}
-		frame := frame % uint(action_len)
-		frame_name = r.idle_actions.section.textures[frame]
+		frame_id := frame_id % uint(action_len)
+		frame_name = r.idle_actions.section.frames[frame_id]
 	//case .Blink:
-	//	frame_name = r.blink.section.textures[frame]
+	//	frame_name = r.blink.section.frames[frame]
 	}
 
-	ok2 := frame_name in r.textures
+	ok2 := frame_name in r.frames
 
 	if ok2 {
-		return &r.textures[frame_name], true
+		return &r.frames[frame_name], true
 	}
 	return nil, false
 }
@@ -348,24 +440,28 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (frame_change
 next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 	switch rs.state {
 	case .Idle:
-		idle_len := len(r.idle.section.textures)
+		idle_len := len(r.idle.section.frames)
 		if idle_len > 0 {
-			rs.cur_frame = (rs.cur_frame + 1) % len(r.idle.section.textures)
+			rs.cur_frame = (rs.cur_frame + 1) % uint(idle_len)
 		}
 	case .Talk:
-		idle_len := len(r.talk.section.textures)
-		if idle_len > 0 {
-			rs.cur_frame = (rs.cur_frame + 1) % len(r.talk.section.textures)
+		talk_len := len(r.talk.section.frames)
+		if talk_len > 0 {
+			rs.cur_frame = (rs.cur_frame + 1) % uint(talk_len)
 		}
 	case .Action:
-		idle_len := len(r.idle_actions.section.textures)
-		if idle_len > 0 {
-			rs.cur_frame = (rs.cur_frame + 1) % len(r.idle_actions.section.textures)
+		action_len := len(r.idle_actions.section.frames)
+		if action_len > 0 {
+			if rs.cur_frame == uint(action_len - 1) {
+				switch_state(rs, r, .Idle)
+			} else {
+				rs.cur_frame = (rs.cur_frame + 1) % uint(action_len)
+			}
 		}
 	/*case .Blink:
-		idle_len := len(r.blink.section.textures)
+		idle_len := len(r.blink.section.frames)
 		if idle_len > 0{
-			rs.cur_frame = (rs.cur_frame + 1) % len(r.blink.section.textures)
+			rs.cur_frame = (rs.cur_frame + 1) % len(r.blink.section.frames)
 		}
 	*/
 	}
@@ -374,31 +470,31 @@ next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 	switch rs.state {
 	case .Idle:
-		if len(r.idle.section.textures) == 0 {
+		if len(r.idle.section.frames) == 0 {
 			break
 		}
-		frame_name := r.idle.section.textures[rs.cur_frame]
-		frame, ok := r.textures[frame_name]
+		frame_name := r.idle.section.frames[rs.cur_frame]
+		frame, ok := r.frames[frame_name]
 
 		rs.frame_time = frame.time
 	case .Talk:
-		if len(r.talk.section.textures) == 0 {
+		if len(r.talk.section.frames) == 0 {
 			break
 		}
-		frame_name := r.talk.section.textures[rs.cur_frame]
-		frame, ok := r.textures[frame_name]
+		frame_name := r.talk.section.frames[rs.cur_frame]
+		frame, ok := r.frames[frame_name]
 
 		rs.frame_time = frame.time
 	case .Action:
-		if len(r.idle_actions.section.textures) == 0 {
+		if len(r.idle_actions.section.frames) == 0 {
 			break
 		}
-		frame_name := r.idle_actions.section.textures[rs.cur_frame]
-		frame, ok := r.textures[frame_name]
+		frame_name := r.idle_actions.section.frames[rs.cur_frame]
+		frame, ok := r.frames[frame_name]
 
 		rs.frame_time = frame.time
 	/*case .Blink:
-		if len(r.blink.section.textures) == 0 {
+		if len(r.blink.section.frames) == 0 {
 			break
 		}
 		rs.cur_frame_name = r.blink.textures[rs.cur_frame[0]][rs.cur_frame[1]]
@@ -412,17 +508,17 @@ update_frame :: proc(rs: ^RigStatus, r: ^Rig) {
 switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed: bool) {
 	switch state {
 	case .Idle:
-		if len(r.idle.section.textures) == 0 {
+		if len(r.idle.section.frames) == 0 {
 			return false
 		}
 	case .Talk:
 		rs.idle_time = 0.0
-		if len(r.talk.section.textures) == 0 {
+		if len(r.talk.section.frames) == 0 {
 			return false
 		}
 	case .Action:
 		rs.idle_time = 0.0
-		if len(r.idle_actions.section.textures) == 0 {
+		if len(r.idle_actions.section.frames) == 0 {
 			return false
 		}
 	//case .Blink:
@@ -438,7 +534,7 @@ switch_state :: proc(rs: ^RigStatus, r: ^Rig, state: RigState) -> (state_changed
 
 get_rig_rect :: proc(r: ^Rig) -> rl.Rectangle {
 	min_x, max_x, min_y, max_y: f32
-	for _, &frame in r.textures {
+	for _, &frame in r.frames {
 		x, y, width, height: f32
 		x = frame.transform.position.x
 		y = frame.transform.position.y

@@ -11,9 +11,10 @@ AppScene :: enum {
 }
 
 AppRigData :: struct {
-	rotation:      f32,
-	tint:          rl.Color,
-	frame_changed: bool,
+	transformers:           [2]Transformer,
+	cur_volume_transformer: Transformer,
+	tint:                   rl.Color,
+	frame_changed:          bool,
 }
 
 App :: struct {
@@ -73,6 +74,7 @@ app_load_rig :: proc(app: ^App, path: string) {
 		app.loaded_rig = rig
 		load_textures(&app.frame_lib, rig)
 	}
+	app.rig_data.cur_volume_transformer.lerp_mode = app.loaded_rig.vt_lerp_mode
 }
 app_change_scene :: proc(app: ^App, scene: string) {
 	scene_enum, ok := reflect.enum_from_name(AppScene, scene)
@@ -86,7 +88,10 @@ app_change_scene :: proc(app: ^App, scene: string) {
 				break
 			}
 			rig_rect := get_rig_rect(app.loaded_rig)
-			rl.SetWindowSize(math.max(i32(rig_rect.width), 100), math.max(i32(rig_rect.height), 100))
+			rl.SetWindowSize(
+				math.max(i32(rig_rect.width), 100),
+				math.max(i32(rig_rect.height), 100),
+			)
 		}
 	}
 }
@@ -100,15 +105,15 @@ app_process :: proc(app: ^App, delta: f32) {
 }
 
 app_process_png_tuber :: proc(app: ^App, delta: f32) {
-	app.rig_data.frame_changed = process_rig_status(&app.rig_status, app.loaded_rig, delta)\
+	app.rig_data.frame_changed = process_rig_status(&app.rig_status, app.loaded_rig, delta)
 }
 
-app_draw :: proc(app: ^App) {
+app_draw :: proc(app: ^App, delta: f32) {
 	switch app.scene {
 	case .Menu:
 		draw_menu(app)
 	case .Png_Tuber:
-		draw_png_tuber(app)
+		draw_png_tuber(app, delta)
 	}
 }
 
@@ -116,22 +121,61 @@ draw_menu :: proc(app: ^App) {
 
 }
 
-draw_png_tuber :: proc(app: ^App) {
-	cur_frame, frame_ok := get_texture(app.loaded_rig, app.rig_status.state, app.rig_status.cur_frame)
+draw_png_tuber :: proc(app: ^App, delta: f32) {
+	cur_frame, frame_ok := get_frame(
+		app.loaded_rig,
+		app.rig_status.state,
+		app.rig_status.cur_frame,
+	)
 	if !frame_ok {
 		return
 	}
 
-	next_frame, _ := get_texture(app.loaded_rig, app.rig_status.state, app.rig_status.cur_frame + 1) // if cur frame is ok then next frame WILL BE ok
-	
+	next_frame, _ := get_frame(app.loaded_rig, app.rig_status.state, app.rig_status.cur_frame + 1) // if cur frame is ok then next frame WILL BE ok
+
 	texture, texture_ok := app.frame_lib.textures[cur_frame.src]
 	if !texture_ok {
 		return
 	}
 
-	frame_factor := get_texture_factor(app.loaded_rig, app.rig_status.state, app.rig_status.cur_frame, app.rig_status.frame_time)
+	db := get_db() //decibels
 
-	cur_transform := lerp_transformers(&cur_frame.transform, &next_frame.transform, frame_factor)
+	if app.rig_data.frame_changed {
+		app.rig_data.frame_changed = false
+
+		app.rig_data.transformers[0] = app.rig_data.transformers[1]
+		app.rig_data.transformers[1] = colapse_rand_transformer(&next_frame.rand_transform)
+	}
+
+	frame_factor := get_texture_factor(
+		app.loaded_rig,
+		app.rig_status.state,
+		app.rig_status.cur_frame,
+		app.rig_status.frame_time,
+	)
+
+	cur_frame_transform := add_transformers(&cur_frame.transform, &app.rig_data.transformers[0])
+	next_frame_transform := add_transformers(&next_frame.transform, &app.rig_data.transformers[1])
+
+	volume_tranform := solve_volume_transformers(&cur_frame.volume_transforms, db)
+	if !app.loaded_rig.lerp_vt {
+		app.rig_data.cur_volume_transformer = volume_tranform
+	} else {
+		app.rig_data.cur_volume_transformer = lerp_transformers(
+			&app.rig_data.cur_volume_transformer,
+			&volume_tranform,
+			delta * app.loaded_rig.vt_lerp_strength,
+			app.loaded_rig.vt_lerp_mode,
+		)
+	}
+
+	cur_transform := lerp_transformers(
+		&cur_frame_transform,
+		&next_frame_transform,
+		frame_factor,
+		cur_frame_transform.lerp_mode,
+	)
+	cur_transform = add_transformers(&cur_transform, &app.rig_data.cur_volume_transformer)
 
 	position_anchor :=
 		math_anchor_position(
@@ -139,17 +183,23 @@ draw_png_tuber :: proc(app: ^App) {
 			f32(rl.GetScreenHeight()),
 			app.loaded_rig.window_anchor,
 		) -
-		math_anchor_position(cur_transform.width, cur_transform.height, app.loaded_rig.window_anchor) +
-		{cur_transform.width / 2.0, cur_transform.height / 2.0} + 
+		math_anchor_position(
+			cur_transform.width,
+			cur_transform.height,
+			app.loaded_rig.window_anchor,
+		) +
+		{cur_transform.width / 2.0, cur_transform.height / 2.0} +
 		app.loaded_rig.window_anchor_offset
-	rotation_anchor := math_anchor_position(
-		cur_transform.width,
-		cur_transform.height,
-		app.loaded_rig.rotation_anchor,
-	) + app.loaded_rig.rotation_anchor_offset
+	rotation_anchor :=
+		math_anchor_position(
+			cur_transform.width,
+			cur_transform.height,
+			app.loaded_rig.rotation_anchor,
+		) +
+		app.loaded_rig.rotation_anchor_offset
 
 	frame_tint: rl.Color
-	if cur_frame.overwrite_tint{
+	if cur_frame.overwrite_tint {
 		frame_tint = cur_frame.tint
 	} else {
 		frame_tint = rl.WHITE
@@ -161,13 +211,13 @@ draw_png_tuber :: proc(app: ^App) {
 		texture,
 		{0, 0, f32(texture.width), f32(texture.height)},
 		{
-			frame_position.x + position_anchor.x + rotation_anchor.x - cur_transform.width/2.0,
-			frame_position.y + position_anchor.y + rotation_anchor.y - cur_transform.height/2.0,
+			frame_position.x + position_anchor.x + rotation_anchor.x - cur_transform.width / 2.0,
+			frame_position.y + position_anchor.y + rotation_anchor.y - cur_transform.height / 2.0,
 			cur_transform.width,
 			cur_transform.height,
 		},
 		rotation_anchor,
 		cur_transform.rotation,
-		frame_tint
+		frame_tint,
 	)
 }

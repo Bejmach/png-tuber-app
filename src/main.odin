@@ -102,7 +102,7 @@ main :: proc() {
 		rl.BeginDrawing()
 		rl.ClearBackground(app.settings.background_color)
 		{
-			app_draw(app)
+			app_draw(app, delta)
 		}
 		rl.EndDrawing()
 

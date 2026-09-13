@@ -1,129 +1,255 @@
 {
   "frames": {
     "idle_a_0": {
-      "src": "frames/idle_a_0000.png"
+      "src": "frames/idle_a_0000.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "idle_a_1": {
-      "src": "frames/idle_a_0001.png"
+      "src": "frames/idle_a_0001.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "blink_a_0": {
-      "src": "frames/blink_a_0000.png"
+      "src": "frames/blink_a_0000.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "talk_a_0": {
       "src": "frames/talk_a_0000.png",
-      "overwrite_time": true,
-      "frame_time": 0.15,
-      "random_time_offset": [
-        0.0,
-        0.1
-      ]
+      "time": 0.2,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "talk_a_1": {
       "src": "frames/talk_a_0001.png",
-      "overwrite_time": true,
-      "frame_time": 0.15,
-      "random_time_offset": [
-        0.0,
-        0.1
-      ]
+      "time": 0.2,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "talk_a_2": {
       "src": "frames/talk_a_0002.png",
-      "overwrite_time": true,
-      "frame_time": 0.15,
-      "random_time_offset": [
-        0.0,
-        0.1
-      ]
+      "time": 0.2,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "talk_a_3": {
       "src": "frames/talk_a_0003.png",
-      "overwrite_time": true,
-      "frame_time": 0.15,
-      "random_time_offset": [
-        0.0,
-        0.1
-      ]
+      "time": 0.2,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "talk_a_4": {
       "src": "frames/talk_a_0004.png",
-      "overwrite_time": true,
-      "frame_time": 0.15,
-      "random_time_offset": [
-        0.0,
-        0.1
-      ]
+      "time": 0.2,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_0": {
-      "src": "frames/action_a_0000.png"
+      "src": "frames/action_a_0000.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_1": {
-      "src": "frames/action_a_0001.png"
+      "src": "frames/action_a_0001.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_2": {
-      "src": "frames/action_a_0002.png"
+      "src": "frames/action_a_0002.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_3": {
       "src": "frames/action_a_0003.png",
-      "overwrite_time": true,
-      "frame_time": 0.3,
-      "random_time_offset": [
-        0.0,
-        0.2
-      ]
+      "time": 0.4,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_4": {
       "src": "frames/action_a_0004.png",
-      "overwrite_time": true,
-      "frame_time": 0.3,
-      "random_time_offset": [
-        0.0,
-        0.2
-      ]
+      "time": 0.4,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_5": {
       "src": "frames/action_a_0005.png",
-      "overwrite_time": true,
-      "frame_time": 0.3,
-      "random_time_offset": [
-        0.0,
-        0.2
-      ]
+      "time": 0.4,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_6": {
       "src": "frames/action_a_0006.png",
-      "overwrite_time": true,
-      "frame_time": 0.3,
-      "random_time_offset": [
-        0.0,
-        0.2
-      ]
+      "time": 0.4,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_7": {
-      "src": "frames/action_a_0007.png"
+      "src": "frames/action_a_0007.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     },
     "action_a_8": {
-      "src": "frames/action_a_0008.png"
+      "src": "frames/action_a_0008.png",
+      "time": 0.3,
+      "transform": {
+        "width": 500,
+        "height": 500
+      },
+      "rand_transform": {
+        "rotation": [
+          -2.5,
+          2.5
+        ]
+      }
     }
   },
   "idle": {
-    "frames": [
-      [
+    "section": {
+      "frames": [
         "idle_a_0",
         "idle_a_1"
       ]
-    ]
-  },
-  "blink": {
-    "frames": [
-      [
-        "blink_a_0"
-      ]
-    ]
+    }
   },
   "idle_actions": {
-    "frames": [
-      [
+    "section": {
+      "frames": [
         "action_a_0",
         "action_a_1",
         "action_a_2",
@@ -134,65 +260,22 @@
         "action_a_7",
         "action_a_8"
       ]
-    ]
+    }
   },
   "talk": {
-    "frames": [
-      [
+    "section": {
+      "frames": [
         "talk_a_0",
         "talk_a_1",
         "talk_a_2",
         "talk_a_3",
         "talk_a_4"
       ]
-    ],
-    "randomise": true
+    }
   },
-  "idle_time": 15.0,
+  "idle_time": 5.0,
   "blink_time": 10.0,
   "preserve_talk_time": 0.5,
   "window_anchor": "Center_Center",
-  "rotation_anchor": "Center_Center",
-  "position_offset": [
-    0,
-    0
-  ],
-  "overwrite_size": true,
-  "width": 500,
-  "height": 500,
-  "frame_time": 0.2,
-  "random_time_offset": [
-    0.0,
-    0.2
-  ],
-  "rotation": 0.0,
-  "random_rotation_offset": [
-    -2.5,
-    2.5
-  ],
-  "frame_tint": true,
-  "tint": [
-    255,
-    255,
-    255,
-    255
-  ],
-  "random_tint_offset": [
-    [
-      -15,
-      0
-    ],
-    [
-      -15,
-      0
-    ],
-    [
-      -15,
-      0
-    ],
-    [
-      0,
-      0
-    ]
-  ]
+  "rotation_anchor": "Center_Center"
 }
