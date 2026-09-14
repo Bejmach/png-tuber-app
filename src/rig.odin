@@ -27,6 +27,7 @@ TextureLib :: struct {
 Rig :: struct {
 	frames:             map[string]Frame,
 	sections:           map[string]AnimationSection,
+	params:             map[string]string,
 	on_talk:            []RigCommand,
 	on_blink:           []RigCommand, // only from idle
 	on_action:          []RigCommand,
@@ -53,6 +54,7 @@ AnimationSection :: struct {
 	rotation_anchor_offset: la.Vector2f32,
 	volume_transforms:      []VolumeTransformer, // supposed to go from quietest to loudest
 	connect_to_section:     string,
+	on_section_end:         []RigCommand,
 }
 
 delete_animation_section :: proc(as: ^AnimationSection) {
@@ -62,6 +64,8 @@ delete_animation_section :: proc(as: ^AnimationSection) {
 	delete(as.frames)
 
 	delete(as.connect_to_section)
+
+	delete_rig_commands(&as.on_section_end)
 
 	delete(as.volume_transforms)
 }
@@ -302,6 +306,12 @@ delete_rig :: proc(rig: ^Rig) {
 		}
 		delete(rig.sections)
 
+		for key, value in rig.params{
+			delete(key)
+			delete(value)
+		}
+		delete(rig.params)
+
 		delete_rig_commands(&rig.on_idle)
 		delete_rig_commands(&rig.on_talk)
 		delete_rig_commands(&rig.on_action)
@@ -406,6 +416,7 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 	talk := db > r.volume_threshhold
 
 	if talk {
+		rs.preserve_talk_time = 0.0
 		rs.idle_time = 0.0
 		if !rs.is_talking {
 			for &command in r.on_talk {
@@ -414,27 +425,31 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 			fmt.println("Talk")
 			global_change = true
 		}
-	} else {
-		rs.idle_time += delta
-		if rs.is_talking {
-			for &command in r.on_idle {
-				run_rig_command(r, &command)
-			}
-			fmt.println("Idle")
-			global_change = true
-		}
 
-		if rs.idle_time >= r.idle_time {
-			for &command in r.on_action {
-				run_rig_command(r, &command)
+		rs.is_talking = true
+	} else {
+		rs.preserve_talk_time += delta
+		if rs.preserve_talk_time > r.preserve_talk_time {
+			rs.idle_time += delta
+			if rs.is_talking {
+				for &command in r.on_idle {
+					run_rig_command(r, &command)
+				}
+				fmt.println("Idle")
+				global_change = true
 			}
-			rs.idle_time = 0.0
-			fmt.println("Action")
-			global_change = true
+
+			if rs.idle_time >= r.idle_time {
+				for &command in r.on_action {
+					run_rig_command(r, &command)
+				}
+				rs.idle_time = 0.0
+				fmt.println("Action")
+				global_change = true
+			}
+			rs.is_talking = false
 		}
 	}
-
-	rs.is_talking = talk
 
 	modyfied_sections := [dynamic]string{}
 
@@ -466,7 +481,17 @@ next_frame :: proc(rs: ^RigStatus, r: ^Rig, section_name: string) {
 	}
 
 	cur_frame := rs.cur_frame[section_name]
-	rs.cur_frame[section_name] = (cur_frame + 1) % len(section.frames)
+
+	sec_len := len(section.frames)
+
+	if cur_frame + 1 == uint(sec_len) {
+		rs.cur_frame[section_name] = 0
+		for &command in section.on_section_end {
+			run_rig_command(r, &command)
+		}
+	} else{
+		rs.cur_frame[section_name] += 1
+	}
 }
 
 update_frame :: proc(rs: ^RigStatus, r: ^Rig, section_name: string) {

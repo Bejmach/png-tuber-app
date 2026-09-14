@@ -14,11 +14,30 @@ RigCommand :: struct {
 }
 
 run_rig_command :: proc(r: ^Rig, command: ^RigCommand){
+	parsed_params := make([]string, len(command.params))
+	defer delete(parsed_params)
+
+	for param, id in command.params{
+		if param[0] == '$'{
+			param_name := param[1:]
+			value, ok := r.params[param_name]
+
+			if ok{
+				parsed_params[id] = value
+			} else {
+				fmt.eprintln("Param", param_name, "not found in rig params")
+				return 
+			}
+		} else {
+			parsed_params[id] = param
+		}
+	}
+
 	switch command.action{
 	case .Enable_Section:
-		comm_enable_section(r, command.params)
+		comm_enable_section(r, parsed_params)
 	case .Disable_Section:
-		comm_disable_section(r, command.params)
+		comm_disable_section(r, parsed_params)
 
 	}
 }

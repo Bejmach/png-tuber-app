@@ -239,16 +239,30 @@
       }
     }
   },
-  "idle": {
-    "section": {
+  "sections": {
+    "idle": {
+      "visible": true,
       "frames": [
         "idle_a_0",
         "idle_a_1"
-      ]
-    }
-  },
-  "idle_actions": {
-    "section": {
+      ],
+      "window_anchor": "Center_Center",
+      "rotation_anchor": "Center_Center"
+    },
+    "talk": {
+      "visible": false,
+      "frames": [
+        "talk_a_0",
+        "talk_a_1",
+        "talk_a_2",
+        "talk_a_3",
+        "talk_a_4"
+      ],
+      "window_anchor": "Center_Center",
+      "rotation_anchor": "Center_Center"
+    },
+    "action": {
+      "visible": false,
       "frames": [
         "action_a_0",
         "action_a_1",
@@ -259,23 +273,75 @@
         "action_a_6",
         "action_a_7",
         "action_a_8"
+      ],
+      "window_anchor": "Center_Center",
+      "rotation_anchor": "Center_Center",
+      "on_section_end": [
+        {
+          "action": "Enable_Section",
+          "params": [
+            "idle"
+          ]
+        },
+        {
+          "action": "Disable_Section",
+          "params": [
+            "$talk_var",
+            "action"
+          ]
+        }
       ]
     }
   },
-  "talk": {
-    "section": {
-      "frames": [
-        "talk_a_0",
-        "talk_a_1",
-        "talk_a_2",
-        "talk_a_3",
-        "talk_a_4"
+  "on_idle": [
+    {
+      "action": "Enable_Section",
+      "params": [
+        "idle"
+      ]
+    },
+    {
+      "action": "Disable_Section",
+      "params": [
+        "$talk_var",
+        "action"
       ]
     }
-  },
+  ],
+  "on_talk": [
+    {
+      "action": "Enable_Section",
+      "params": [
+        "$talk_var"
+      ]
+    },
+    {
+      "action": "Disable_Section",
+      "params": [
+        "idle",
+        "action"
+      ]
+    }
+  ],
+  "on_action": [
+    {
+      "action": "Enable_Section",
+      "params": [
+        "action"
+      ]
+    },
+    {
+      "action": "Disable_Section",
+      "params": [
+        "idle"
+      ]
+    }
+  ],
   "idle_time": 5.0,
   "blink_time": 10.0,
   "preserve_talk_time": 0.5,
-  "window_anchor": "Center_Center",
-  "rotation_anchor": "Center_Center"
+  "volume_threshhold": -50,
+  "params": {
+    "talk_var": "talk"
+  }
 }
