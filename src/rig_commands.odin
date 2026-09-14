@@ -1,5 +1,6 @@
 package png_tuber
 
+import "core:fmt"
 import "core:reflect"
 import "core:strings"
 RigAction :: enum {
@@ -10,6 +11,34 @@ RigAction :: enum {
 RigCommand :: struct {
 	action: RigAction,
 	params: []string,
+}
+
+run_rig_command :: proc(r: ^Rig, command: ^RigCommand){
+	switch command.action{
+	case .Enable_Section:
+		comm_enable_section(r, command.params)
+	case .Disable_Section:
+		comm_disable_section(r, command.params)
+
+	}
+}
+
+comm_enable_section :: proc(r: ^Rig, sections: []string){
+	for section_name in sections{
+		section, ok := &r.sections[section_name]
+		if ok {
+			section.visible = true
+		}
+	}
+}
+
+comm_disable_section :: proc(r: ^Rig, sections: []string){
+	for section_name in sections{
+		section, ok := &r.sections[section_name]
+		if ok {
+			section.visible = false
+		}
+	}
 }
 
 parse_command :: proc(command: string) -> []RigCommand {
@@ -53,6 +82,9 @@ parse_command :: proc(command: string) -> []RigCommand {
 
 delete_rig_commands :: proc(rc_s: ^[]RigCommand){
 	for &command in rc_s{
+		for param in command.params{
+			delete(param)
+		}
 		delete(command.params)
 	}
 

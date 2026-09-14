@@ -2,7 +2,6 @@
 
 package png_tuber
 
-import "core:slice"
 import "core:encoding/json"
 import "core:fmt"
 import "core:math"
@@ -10,6 +9,7 @@ import la "core:math/linalg"
 import "core:math/rand"
 import "core:os"
 import "core:path/filepath"
+import "core:slice"
 import "core:strings"
 import rl "vendor:raylib"
 
@@ -25,31 +25,34 @@ TextureLib :: struct {
 }
 
 Rig :: struct {
-	frames:                 map[string]Frame,
-	sections:               map[string]AnimationSection,
-	on_talk:                string,
-	on_blink:               string, // only from idle
-	on_action:              string,
-	on_idle:                string, // from talk, blink or action
-	idle_time:              f32,
-	blink_time:             f32,
-	position_offset:        la.Vector2f32,
-	rotation_offset:        la.Vector2f32,
-	preserve_talk_time:     f32,
-	lerp_vt:                bool,
-	vt_lerp_mode:           LerpMode,
-	vt_lerp_strength:       f32,
-	rig_path:               string,
+	frames:             map[string]Frame,
+	sections:           map[string]AnimationSection,
+	on_talk:            []RigCommand,
+	on_blink:           []RigCommand, // only from idle
+	on_action:          []RigCommand,
+	on_idle:            []RigCommand, // from talk, blink or action
+	idle_time:          f32,
+	blink_time:         f32,
+	position_offset:    la.Vector2f32,
+	rotation_offset:    la.Vector2f32,
+	preserve_talk_time: f32,
+	lerp_vt:            bool,
+	vt_lerp_mode:       LerpMode,
+	vt_lerp_strength:   f32,
+	volume_threshhold:  f32,
+	rig_path:           string,
 }
 
 AnimationSection :: struct {
-	visible: bool,
-	z_index: int,
-	frames:  []string,
+	visible:                bool,
+	z_index:                int,
+	frames:                 []string,
 	window_anchor:          Anchor,
 	window_anchor_offset:   la.Vector2f32,
 	rotation_anchor:        Anchor,
 	rotation_anchor_offset: la.Vector2f32,
+	volume_transforms:      []VolumeTransformer, // supposed to go from quietest to loudest
+	connect_to_section:     string,
 }
 
 delete_animation_section :: proc(as: ^AnimationSection) {
@@ -57,21 +60,23 @@ delete_animation_section :: proc(as: ^AnimationSection) {
 		delete(frame)
 	}
 	delete(as.frames)
+
+	delete(as.connect_to_section)
+
+	delete(as.volume_transforms)
 }
 
 Frame :: struct {
-	src:               string,
-	time:              f32,
-	transform:         Transformer,
-	rand_transform:    RandTransformer,
-	volume_transforms: []VolumeTransformer, // supposed to go from quietest to loudest
-	overwrite_tint:    bool, // Prevents having default tint as black with alpha 0
-	tint:              rl.Color,
+	src:            string,
+	time:           f32,
+	transform:      Transformer,
+	rand_transform: RandTransformer,
+	overwrite_tint: bool, // Prevents having default tint as black with alpha 0
+	tint:           rl.Color,
 }
 
 delete_frame :: proc(f: ^Frame) {
 	delete(f.src)
-	delete(f.volume_transforms)
 }
 
 Transformer :: struct {
@@ -214,15 +219,11 @@ RigStatus :: struct {
 	blink_time:         f32,
 	cur_frame:          map[string]uint,
 	preserve_talk_time: f32,
-	on_talk:            []RigCommand,
-	on_blink:           []RigCommand, // only from idle
-	on_action:          []RigCommand,
-	on_idle:            []RigCommand, // from talk, blink or action
 	z_layers:           []int,
 }
 
 default_rig_status :: proc() -> RigStatus {
-	return RigStatus{false, {}, 0.0, 0.0, {}, 0.0, {}, {}, {}, {}, {}}
+	return RigStatus{false, {}, 0.0, 0.0, {}, 0.0, {}}
 }
 
 prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
@@ -231,15 +232,10 @@ prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
 		rs.cur_frame[key] = 0
 	}
 
-	rs.on_talk = parse_command(r.on_talk)
-	rs.on_blink = parse_command(r.on_blink)
-	rs.on_action = parse_command(r.on_action)
-	rs.on_idle = parse_command(r.on_idle)
-
 	active_layers := make([dynamic]int)
-	for key, value in r.sections{
+	for key, value in r.sections {
 		ok := slice.contains(active_layers[:], value.z_index)
-		if !ok{
+		if !ok {
 			append(&active_layers, value.z_index)
 		}
 	}
@@ -306,6 +302,11 @@ delete_rig :: proc(rig: ^Rig) {
 		}
 		delete(rig.sections)
 
+		delete_rig_commands(&rig.on_idle)
+		delete_rig_commands(&rig.on_talk)
+		delete_rig_commands(&rig.on_action)
+		delete_rig_commands(&rig.on_blink)
+
 		free(rig)
 	}
 }
@@ -370,7 +371,7 @@ get_frame :: proc(r: ^Rig, section_name: string, frame_id: uint) -> (frame: ^Fra
 	if !section_ok {
 		return nil, false
 	}
-	
+
 	frame_id := frame_id % len(section.frames)
 
 	frame_name := section.frames[frame_id]
@@ -390,30 +391,45 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 
 	global_change := false
 
+	rs.blink_time -= delta
+
 	if rs.blink_time < 0.0 {
 		rs.blink_time = r.blink_time
-		// run_command(rs.on_blink)
+		for &command in r.on_blink {
+			run_rig_command(r, &command)
+		}
+		fmt.println("Blink")
 		global_change = true
 	}
 
 	db := get_db() // volume decibels
-	talk := db > -50
+	talk := db > r.volume_threshhold
 
 	if talk {
 		rs.idle_time = 0.0
 		if !rs.is_talking {
-			// run_command(rs.on_talk)
+			for &command in r.on_talk {
+				run_rig_command(r, &command)
+			}
+			fmt.println("Talk")
 			global_change = true
 		}
 	} else {
 		rs.idle_time += delta
 		if rs.is_talking {
-			//run_command(rs.on_idle)
+			for &command in r.on_idle {
+				run_rig_command(r, &command)
+			}
+			fmt.println("Idle")
 			global_change = true
 		}
 
 		if rs.idle_time >= r.idle_time {
-			//run_command(rs.on_action)
+			for &command in r.on_action {
+				run_rig_command(r, &command)
+			}
+			rs.idle_time = 0.0
+			fmt.println("Action")
 			global_change = true
 		}
 	}
@@ -433,8 +449,8 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 			next_frame(rs, r, section_name)
 			update_frame(rs, r, section_name)
 			append(&modyfied_sections, section_name)
-			
-		} else if global_change{
+
+		} else if global_change {
 			append(&modyfied_sections, section_name)
 		}
 	}
@@ -491,203 +507,3 @@ get_rig_rect :: proc(r: ^Rig) -> rl.Rectangle {
 
 	return rl.Rectangle{min_x, min_y, max_x - min_x, max_y - min_y}
 }
-
-/*
-
-next_frame :: proc(rs: ^RigStatus, r: ^Rig) {
-	switch rs.state {
-	case .Idle:
-		if len(r.idle.textures) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.idle.textures[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			next_section(rs, r)
-			rs.cur_frame[1] = 0
-		}
-		update_frame(rs, r)
-	case .Talk:
-		if len(r.talk.textures) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.talk.textures[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			next_section(rs, r)
-			rs.cur_frame[1] = 0
-		}
-		update_frame(rs, r)
-	case .Action:
-		if len(r.idle_actions.textures) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.idle_actions.textures[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			switch_state(rs, r, .Idle)
-		}
-		update_frame(rs, r)
-	case .Blink:
-		if len(r.blink.textures) == 0 {
-			break
-		}
-		rs.cur_frame[1] += 1
-		rig_section := r.blink.textures[rs.cur_frame[0]]
-		if rs.cur_frame[1] >= len(rig_section) {
-			switch_state(rs, r, .Idle)
-		}
-		update_frame(rs, r)
-	}
-}
-
-
-
-next_section :: proc(rs: ^RigStatus, r: ^Rig, move_by: uint = 1) {
-	switch rs.state {
-	case .Idle:
-		if len(r.idle.textures) == 0 {
-			break
-		}
-		if r.idle.randomise {
-			rs.cur_frame[0] = rand.uint_range(0, len(r.idle.textures))
-		} else {
-			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.idle.textures)
-		}
-	case .Talk:
-		if len(r.talk.textures) == 0 {
-			break
-		}
-		if r.talk.randomise {
-			rs.cur_frame[0] = rand.uint_range(0, len(r.talk.textures))
-		} else {
-			rs.cur_frame[0] = (rs.cur_frame[0] + move_by) % len(r.talk.textures)
-		}
-	case .Action:
-		if len(r.idle_actions.textures) == 0 {
-			break
-		}
-		rs.cur_frame[0] = rand.uint_range(0, len(r.idle_actions.textures))
-	case .Blink:
-		if len(r.blink.textures) == 0 {
-			break
-		}
-		rs.cur_frame[0] = rand.uint_range(0, len(r.blink.textures))
-	}
-}
-
-delete_frame :: proc(f: ^Frame) {
-	delete_position(&f.position)
-	delete(f.src)
-}
-
-get_frame_rotation :: proc(f: ^Frame, r: ^Rig) -> f32 {
-	if !f.overwrite_rotation {
-		rand_rotation: f32
-		if r.random_rotation_offset[0] < r.random_rotation_offset[1] {
-			rand_rotation = rand.float32_range(
-				r.random_rotation_offset[0],
-				r.random_rotation_offset[1],
-			)
-		}
-
-		return r.rotation + rand_rotation
-	}
-
-	rand_rotation: f32
-	if f.random_rotation_offset[0] < f.random_rotation_offset[1] {
-		rand_rotation = rand.float32_range(
-			f.random_rotation_offset[0],
-			f.random_rotation_offset[1],
-		)
-	}
-
-
-	return(
-		f.rotation +
-		rand.float32_range(f.random_rotation_offset[0], f.random_rotation_offset[1]) \
-	)
-}
-
-get_frame_tint :: proc(f: ^Frame, r: ^Rig) -> rl.Color {
-	if !f.overwrite_tint {
-		if !r.frame_tint {
-			return rl.WHITE
-		}
-
-		rand_r, rand_g, rand_b, rand_a: u8
-
-		if r.random_tint_offset[0][0] < r.random_tint_offset[0][1] {
-			rand_r = u8(rand.int32_range(r.random_tint_offset[0][0], r.random_tint_offset[0][1]))
-		}
-		if r.random_tint_offset[1][0] < r.random_tint_offset[1][1] {
-			rand_g = u8(rand.int32_range(r.random_tint_offset[1][0], r.random_tint_offset[1][1]))
-		}
-		if r.random_tint_offset[2][0] < r.random_tint_offset[2][1] {
-			rand_b = u8(rand.int32_range(r.random_tint_offset[2][0], r.random_tint_offset[2][1]))
-		}
-		if r.random_tint_offset[3][0] < r.random_tint_offset[3][1] {
-			rand_a = u8(rand.int32_range(r.random_tint_offset[3][0], r.random_tint_offset[3][1]))
-		}
-
-		r_c := math.clamp(r.tint.r + rand_r, 0, 255)
-		g_c := math.clamp(r.tint.g + rand_g, 0, 255)
-		b_c := math.clamp(r.tint.b + rand_b, 0, 255)
-		a_c := math.clamp(r.tint.a + rand_a, 0, 255)
-
-		return rl.Color{r_c, g_c, b_c, a_c}
-
-	} else {
-		rand_r, rand_g, rand_b, rand_a: u8
-
-		if f.random_tint_offset[0][0] != f.random_tint_offset[0][1] {
-			rand_r = u8(rand.int32_range(f.random_tint_offset[0][0], f.random_tint_offset[0][1]))
-		}
-		if f.random_tint_offset[1][0] != f.random_tint_offset[1][1] {
-			rand_g = u8(rand.int32_range(f.random_tint_offset[1][0], f.random_tint_offset[1][1]))
-		}
-		if f.random_tint_offset[2][0] != f.random_tint_offset[2][1] {
-			rand_b = u8(rand.int32_range(f.random_tint_offset[2][0], f.random_tint_offset[2][1]))
-		}
-		if f.random_tint_offset[3][0] != f.random_tint_offset[3][1] {
-			rand_a = u8(rand.int32_range(f.random_tint_offset[3][0], f.random_tint_offset[3][1]))
-		}
-
-		r_c := math.clamp(f.tint.r + rand_r, 0, 255)
-		g_c := math.clamp(f.tint.g + rand_g, 0, 255)
-		b_c := math.clamp(f.tint.b + rand_b, 0, 255)
-		a_c := math.clamp(f.tint.a + rand_a, 0, 255)
-
-		return rl.Color{r_c, g_c, b_c, a_c}
-	}
-}
-
-delete_frame_data :: proc(fd: ^FrameData) {
-	for textures in fd.textures {
-		for frame in textures {
-			delete(frame)
-		}
-		delete(textures)
-	}
-	delete(fd.textures)
-}
-
-delete_position :: proc(p: ^Position) {
-	delete(p.positions)
-}
-
-get_position :: proc(p: ^Position) -> la.Vector2f32 {
-	if p.use_range {
-		x: f32 = rand.float32_range(p.range_x[0], p.range_x[1])
-		y: f32 = rand.float32_range(p.range_y[0], p.range_y[1])
-
-		return la.Vector2f32{x, y}
-	}
-
-	if len(p.positions) > 0 {
-		id := rand.uint_range(0, len(p.positions))
-		return p.positions[id]
-	}
-	return {0, 0}
-}
-*/

@@ -30,18 +30,7 @@
         "width": 256,
         "height": 256,
         "rotation": -40
-      },
-      "volume_transforms": [
-        {
-          "lerp_mode": "SmoothStep",
-          "volume": -30
-        },
-        {
-          "lerp_mode": "SmoothStep",
-          "volume": -10,
-          "rotation": 60
-        }
-      ]
+      }
     },
     "ear_left_2": {
       "src": "ear_left.png",
@@ -50,23 +39,8 @@
         "lerp_mode": "SmoothStep",
         "width": 256,
         "height": 256,
-        "position": [
-          0,
-          20
-        ],
         "rotation": -40
-      },
-      "volume_transforms": [
-        {
-          "lerp_mode": "SmoothStep",
-          "volume": -30
-        },
-        {
-          "lerp_mode": "SmoothStep",
-          "volume": -10,
-          "rotation": 60
-        }
-      ]
+      }
     },
     "ear_right_1": {
       "src": "ear_right.png",
@@ -96,23 +70,8 @@
         "lerp_mode": "SmoothStep",
         "width": 256,
         "height": 256,
-        "position": [
-          0,
-          20
-        ],
         "rotation": 40
-      },
-      "volume_transforms": [
-        {
-          "lerp_mode": "SmoothStep",
-          "volume": -30
-        },
-        {
-          "lerp_mode": "SmoothStep",
-          "volume": -10,
-          "rotation": -60
-        }
-      ]
+      }
     }
   },
   "sections": {
@@ -135,9 +94,21 @@
       ],
       "window_anchor": "Center_Center",
       "rotation_anchor": "Center_Center",
+      "connect_to_section": "face",
       "rotation_anchor_offset": [
         -20,
         -40
+      ],
+      "volume_transforms": [
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -30
+        },
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -10,
+          "rotation": 60
+        }
       ]
     },
     "ear_right": {
@@ -149,15 +120,48 @@
       ],
       "window_anchor": "Center_Center",
       "rotation_anchor": "Center_Center",
+      "connect_to_section": "face",
       "rotation_anchor_offset": [
         40,
         -40
+      ],
+      "volume_transforms": [
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -30
+        },
+        {
+          "lerp_mode": "SmoothStep",
+          "volume": -10,
+          "rotation": -60
+        }
       ]
     }
   },
+  "on_idle": [
+    {
+      "action": "Disable_Section",
+      "params": [
+        "ear_left",
+        "ear_right"
+      ]
+    }
+  ],
+  "on_talk": [
+    {
+      "action": "Enable_Section",
+      "params": [
+        "ear_left",
+        "ear_right"
+      ]
+    }
+  ],
+  "on_blink": [],
+  "on_action": [],
   "idle_time": 10.0,
   "blink_time": 10.0,
   "lerp_vt": true,
   "vt_lerp_mode": "SmoothStep",
-  "vt_lerp_strength": 10.0
+  "vt_lerp_strength": 10.0,
+  "volume_threshhold": -50
 }

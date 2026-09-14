@@ -22,7 +22,6 @@ AppSectionData :: struct {
 	transformers:           [2]Transformer,
 	cur_volume_transformer: Transformer,
 	tint:                   rl.Color,
-	frame_changed:          bool,
 }
 
 App :: struct {
@@ -125,7 +124,27 @@ app_process_png_tuber :: proc(app: ^App, delta: f32) {
 	}
 	for section_name in changed_sections {
 		section := &app.rig_data.sections[section_name]
-		section.frame_changed = true
+
+		cur_frame, frame_ok := get_frame(
+			app.loaded_rig,
+			section_name,
+			app.rig_status.cur_frame[section_name],
+		)
+
+		if !frame_ok {
+			continue
+		}
+
+		next_frame, _ := get_frame(
+			app.loaded_rig,
+			section_name,
+			app.rig_status.cur_frame[section_name] + 1,
+		)
+
+		app_data_section := &app.rig_data.sections[section_name]
+
+		app_data_section.transformers[0] = app_data_section.transformers[1]
+		app_data_section.transformers[1] = colapse_rand_transformer(&next_frame.rand_transform)
 	}
 }
 
@@ -142,12 +161,84 @@ draw_menu :: proc(app: ^App) {
 
 }
 
-draw_png_tuber :: proc(app: ^App, delta: f32) {
+get_section_transform :: proc(
+	r: ^Rig,
+	rs: ^RigStatus,
+	ard: AppRigData,
+	section_name: string,
+	delta: f32,
+) -> Transformer {
+	section, ok := r.sections[section_name]
 
+	if !ok {
+		return Transformer{}
+	}
+
+	cur_frame, frame_ok := get_frame(r, section_name, rs.cur_frame[section_name])
+
+	if !frame_ok {
+		return Transformer{}
+	}
+
+	next_frame, _ := get_frame(r, section_name, rs.cur_frame[section_name] + 1)
+
+	db := get_db() //decibels
+
+	frame_factor := get_texture_factor(
+		r,
+		section_name,
+		rs.cur_frame[section_name],
+		rs.frame_time[section_name],
+	)
+
+	rig_data_section := &ard.sections[section_name]
+
+	cur_frame_transform := add_transformers(
+		&cur_frame.transform,
+		&rig_data_section.transformers[0],
+	)
+	next_frame_transform := add_transformers(
+		&next_frame.transform,
+		&rig_data_section.transformers[1],
+	)
+
+	volume_tranform := solve_volume_transformers(&section.volume_transforms, db)
+	if !r.lerp_vt {
+		rig_data_section.cur_volume_transformer = volume_tranform
+	} else {
+		rig_data_section.cur_volume_transformer = lerp_transformers(
+			&rig_data_section.cur_volume_transformer,
+			&volume_tranform,
+			delta * r.vt_lerp_strength,
+			r.vt_lerp_mode,
+		)
+	}
+
+	cur_transform := lerp_transformers(
+		&cur_frame_transform,
+		&next_frame_transform,
+		frame_factor,
+		cur_frame_transform.lerp_mode,
+	)
+	cur_transform = add_transformers(&cur_transform, &rig_data_section.cur_volume_transformer)
+
+	if len(section.connect_to_section) != 0{
+		conn_section_ok := section.connect_to_section in r.sections
+		if conn_section_ok{
+			connected_transform := get_section_transform(r, rs, ard, section.connect_to_section, delta)
+			cur_transform.position += connected_transform.position
+			cur_transform.rotation += connected_transform.rotation
+		}
+	}
+
+	return cur_transform
+}
+
+draw_png_tuber :: proc(app: ^App, delta: f32) {
 	for zi in app.rig_status.z_layers {
-		for section_name, section in app.loaded_rig.sections {
+		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
-			if section.z_index != zi {
+			if section.z_index != zi || !section.visible {
 				continue
 			}
 
@@ -161,68 +252,12 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 				continue
 			}
 
-			next_frame, _ := get_frame(
+			cur_transform := get_section_transform(
 				app.loaded_rig,
+				&app.rig_status,
+				app.rig_data,
 				section_name,
-				app.rig_status.cur_frame[section_name] + 1,
-			) // if cur frame is ok then next frame WILL BE ok
-
-			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
-			if !texture_ok {
-				return
-			}
-
-			db := get_db() //decibels
-
-			if app.rig_data.sections[section_name].frame_changed {
-				app_data_section := &app.rig_data.sections[section_name]
-				app_data_section.frame_changed = false
-
-				app_data_section.transformers[0] = app_data_section.transformers[1]
-				app_data_section.transformers[1] = colapse_rand_transformer(
-					&next_frame.rand_transform,
-				)
-			}
-
-			frame_factor := get_texture_factor(
-				app.loaded_rig,
-				section_name,
-				app.rig_status.cur_frame[section_name],
-				app.rig_status.frame_time[section_name],
-			)
-
-			rig_data_section := &app.rig_data.sections[section_name]
-
-			cur_frame_transform := add_transformers(
-				&cur_frame.transform,
-				&rig_data_section.transformers[0],
-			)
-			next_frame_transform := add_transformers(
-				&next_frame.transform,
-				&rig_data_section.transformers[1],
-			)
-
-			volume_tranform := solve_volume_transformers(&cur_frame.volume_transforms, db)
-			if !app.loaded_rig.lerp_vt {
-				rig_data_section.cur_volume_transformer = volume_tranform
-			} else {
-				rig_data_section.cur_volume_transformer = lerp_transformers(
-					&rig_data_section.cur_volume_transformer,
-					&volume_tranform,
-					delta * app.loaded_rig.vt_lerp_strength,
-					app.loaded_rig.vt_lerp_mode,
-				)
-			}
-
-			cur_transform := lerp_transformers(
-				&cur_frame_transform,
-				&next_frame_transform,
-				frame_factor,
-				cur_frame_transform.lerp_mode,
-			)
-			cur_transform = add_transformers(
-				&cur_transform,
-				&rig_data_section.cur_volume_transformer,
+				delta,
 			)
 
 			position_anchor :=
@@ -253,27 +288,31 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 				frame_tint = rl.WHITE
 			}
 
+			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
+
 			frame_position := cur_transform.position + app.loaded_rig.position_offset
 
-			rl.DrawTexturePro(
-				texture,
-				{0, 0, f32(texture.width), f32(texture.height)},
-				{
-					frame_position.x +
-					position_anchor.x +
-					rotation_anchor.x -
-					cur_transform.width / 2.0,
-					frame_position.y +
-					position_anchor.y +
-					rotation_anchor.y -
-					cur_transform.height / 2.0,
-					cur_transform.width,
-					cur_transform.height,
-				},
-				rotation_anchor,
-				cur_transform.rotation,
-				frame_tint,
-			)
+			if texture_ok {
+				rl.DrawTexturePro(
+					texture,
+					{0, 0, f32(texture.width), f32(texture.height)},
+					{
+						frame_position.x +
+						position_anchor.x +
+						rotation_anchor.x -
+						cur_transform.width / 2.0,
+						frame_position.y +
+						position_anchor.y +
+						rotation_anchor.y -
+						cur_transform.height / 2.0,
+						cur_transform.width,
+						cur_transform.height,
+					},
+					rotation_anchor,
+					cur_transform.rotation,
+					frame_tint,
+				)
+			}
 		}
 	}
 }
