@@ -15,6 +15,23 @@ WINDOW_WIDTH: i32 = 800
 WINDOW_HEIGHT: i32 = 600
 WINDOW_TITLE: cstring = "png-tuber studio"
 
+print_help :: proc(){
+	lines := []string{
+		"Usage: {executable} <[flags]> [params]",
+		"",
+		"Flags:",
+		"    -h, --help                shows this message",
+		"",
+		"Params:",
+		"    run (default)             runs the app",
+		"    ipc [app_command]         sends command to running instance"
+	}
+
+	for line in lines{
+		fmt.println(line)
+	}
+}
+
 main :: proc() {
 	when ODIN_DEBUG {
 		track: mem.Tracking_Allocator
@@ -32,87 +49,22 @@ main :: proc() {
 		}
 	}
 
-	//command := parse_command("Enable_Section( idle ); Disable_Section( talk )")
-	//defer delete_rig_commands(&command)
-
-	//fmt.println(command)
-
-	// Initialize audio
-	device_config := ma.device_config_init(.capture)
-	device_config.capture.format = .f32
-	device_config.dataCallback = data_callback
-
-	device: ma.device
-	result := ma.device_init(nil, &device_config, &device)
-
-	if result != .SUCCESS {
-		fmt.eprintln("failed to initialize audio device:", result)
-		os.exit(1)
-	}
-	defer ma.device_uninit(&device)
-
-	result = ma.device_start(&device)
-	if result != .SUCCESS {
-		fmt.eprintln("failed to start audio device:", result)
-		os.exit(1)
-	}
-	defer ma.device_stop(&device)
-
-	// Initialize window
-
-	rl.SetConfigFlags(rl.ConfigFlags{.VSYNC_HINT, .WINDOW_RESIZABLE})
-
-	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
-
-	/*rig, ok := load_rig("./data/example")
-	defer {
-		delete_rig(rig)
-	}
-
-	if ok {
-		fmt.println(rig)
-	}
-	rig_status := default_rig_status()
-
-	frame_lib: FrameLib = FrameLib{{}}
-	defer {
-		delete_frame_lib(&frame_lib)
-	}
-
-	load_textures(&frame_lib, rig)
-
-	fmt.println(frame_lib)*/
-
-	app: ^App = new_app()
-	defer {
-		delete_app(app)
-	}
-
-	app_command(app, .Load_Rig, "./data/example")
-	app_command(app, .Change_Scene, "Png_Tuber")
-
-	for app.running {
-		if rl.WindowShouldClose() {
-			app.running = false
-			break
+	for i:=1; i<len(os.args); i+=1{
+		arg := os.args[i]
+		switch arg{
+		case "-h", "--help":
+			print_help()
+			return
+		case "ipc":
+			if i+1 < len(os.args){
+				send_ipc(os.args[i+1])
+			} else {
+				fmt.println("No command for ipc provided")
+			}
+			return
 		}
-		if !app.muted {
-			analyze_audio()
-		}
+	}
 	
-		delta := rl.GetFrameTime() * app.time_speed
 
-		app_process(app, delta)
-
-		rl.BeginDrawing()
-		rl.ClearBackground(app.settings.background_color)
-		{
-			app_draw(app, delta)
-		}
-		rl.EndDrawing()
-
-		free_all(context.temp_allocator)
-	}
-
-	rl.CloseWindow()
+	app_run()
 }

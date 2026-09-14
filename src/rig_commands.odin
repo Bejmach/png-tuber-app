@@ -92,6 +92,12 @@ parse_command :: proc(command: string) -> []RigCommand {
 		params_str := command[params_start+1:params_end]
 		params := strings.split(params_str, ",")
 
+		// Needs to clone because json parser allocates each param, and split does not
+		// which lead to delete_rig_commands not being able to delete param in string split
+		for i:=0; i<len(params);i+=1{
+			params[i] = strings.clone(params[i])
+		}
+
 		parsed_command := RigCommand{action, params}
 		append(&parsed_commands, parsed_command)
 	}

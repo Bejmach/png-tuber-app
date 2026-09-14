@@ -2,8 +2,23 @@ package png_tuber
 
 import "core:fmt"
 import "core:math"
+import "core:net"
+import "core:os"
 import "core:reflect"
+import "core:strings"
+import "core:sync"
+import "core:thread"
+import ma "vendor:miniaudio"
 import rl "vendor:raylib"
+
+command_mutex: sync.Mutex
+
+IpcCommand :: struct {
+	command: string,
+	content: string,
+}
+
+ipc_commands: [dynamic]IpcCommand
 
 AppScene :: enum {
 	Menu,
@@ -62,6 +77,7 @@ delete_app :: proc(app: ^App) {
 AppCommand :: enum {
 	Load_Rig,
 	Change_Scene,
+	Rig_Command,
 }
 
 app_command :: proc(app: ^App, command: AppCommand, payload: string) {
@@ -70,6 +86,8 @@ app_command :: proc(app: ^App, command: AppCommand, payload: string) {
 		app_load_rig(app, payload)
 	case .Change_Scene:
 		app_change_scene(app, payload)
+	case .Rig_Command:
+		app_rig_command(app, payload)
 	}
 }
 
@@ -106,6 +124,14 @@ app_change_scene :: proc(app: ^App, scene: string) {
 				math.max(i32(rig_rect.height), 100),
 			)
 		}
+	}
+}
+
+app_rig_command :: proc(app: ^App, command: string) {
+	commands := parse_command(command)
+	defer delete_rig_commands(&commands)
+	for &command in commands {
+		run_rig_command(app.loaded_rig, &command)
 	}
 }
 
@@ -222,10 +248,16 @@ get_section_transform :: proc(
 	)
 	cur_transform = add_transformers(&cur_transform, &rig_data_section.cur_volume_transformer)
 
-	if len(section.connect_to_section) != 0{
+	if len(section.connect_to_section) != 0 {
 		conn_section_ok := section.connect_to_section in r.sections
-		if conn_section_ok{
-			connected_transform := get_section_transform(r, rs, ard, section.connect_to_section, delta)
+		if conn_section_ok {
+			connected_transform := get_section_transform(
+				r,
+				rs,
+				ard,
+				section.connect_to_section,
+				delta,
+			)
 			cur_transform.position += connected_transform.position
 			cur_transform.rotation += connected_transform.rotation
 		}
@@ -315,4 +347,148 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 			}
 		}
 	}
+}
+
+ipc_worker :: proc(t: ^thread.Thread) {
+	listener, err := net.listen_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, 9001})
+	app_data := (cast(^App)t.data)
+
+	if err != nil {
+		fmt.eprintln("Failed to run ipc listener", err)
+		return
+	}
+	defer net.close(listener)
+
+	for app_data.running {
+		conn, end, err := net.accept_tcp(listener)
+		if err != nil {
+			fmt.eprintln("Accept failed:", err)
+			continue
+		}
+		defer net.close(conn)
+
+		buffer: [1024]byte
+		n, err2 := net.recv(conn, buffer[:])
+		if err2 != nil {
+			fmt.printfln("Recive failed:", err)
+			return
+		}
+
+		message := string(buffer[:n])
+
+		command: string
+		content: string
+		
+		first_space := strings.index(message, " ")
+		if first_space == -1{
+			command = message
+		} else {
+			command = message[:first_space]
+			content = message[first_space + 1:]
+		}
+
+		sync.mutex_lock(&command_mutex)
+		append(&ipc_commands, IpcCommand{command, content})
+		sync.mutex_unlock(&command_mutex)
+	}
+}
+
+send_ipc :: proc(command: string) {
+	sender, err := net.dial_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, 9001})
+
+	if err != nil {
+		fmt.eprintln("Failed to run ipc listener", err)
+		return
+	}
+	defer net.close(sender)
+
+	net.send_tcp(sender, transmute([]u8)command)
+}
+
+app_run :: proc() {
+	// Initialize audio
+	device_config := ma.device_config_init(.capture)
+	device_config.capture.format = .f32
+	device_config.dataCallback = data_callback
+
+	device: ma.device
+	result := ma.device_init(nil, &device_config, &device)
+
+	if result != .SUCCESS {
+		fmt.eprintln("failed to initialize audio device:", result)
+		os.exit(1)
+	}
+	defer ma.device_uninit(&device)
+
+	result = ma.device_start(&device)
+	if result != .SUCCESS {
+		fmt.eprintln("failed to start audio device:", result)
+		os.exit(1)
+	}
+	defer ma.device_stop(&device)
+
+	// Initialize window
+
+	rl.SetConfigFlags(rl.ConfigFlags{.VSYNC_HINT, .WINDOW_RESIZABLE})
+
+	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
+
+	app: ^App = new_app()
+	defer {
+		delete_app(app)
+	}
+
+	ipc_thread := thread.create(ipc_worker)
+	ipc_thread.init_context = context
+	ipc_thread.user_index = 1
+	ipc_thread.data = &app
+	thread.start(ipc_thread)
+
+	app_command(app, .Load_Rig, "./data/multi_section")
+	app_command(app, .Change_Scene, "Png_Tuber")
+
+	for app.running {
+		sync.mutex_lock(&command_mutex)
+
+		if len(ipc_commands) > 0 {
+
+			for command in ipc_commands {
+				command_enum, ok := reflect.enum_from_name(AppCommand, command.command)
+				if ok {
+					app_command(app, command_enum, command.content)
+				}
+			}
+
+			clear(&ipc_commands)
+		}
+
+		sync.mutex_unlock(&command_mutex)
+
+		if rl.WindowShouldClose() {
+			app.running = false
+			break
+		}
+		if !app.muted {
+			analyze_audio()
+		}
+
+		delta := rl.GetFrameTime() * app.time_speed
+
+		app_process(app, delta)
+
+		rl.BeginDrawing()
+		rl.ClearBackground(app.settings.background_color)
+		{
+			app_draw(app, delta)
+		}
+		rl.EndDrawing()
+
+		free_all(context.temp_allocator)
+	}
+
+	rl.CloseWindow()
+	thread.terminate(ipc_thread, 0)
+	thread.destroy(ipc_thread)
+
+	delete(ipc_commands)
 }
