@@ -29,6 +29,10 @@ AppRigData :: struct {
 	sections: map[string]AppSectionData,
 }
 
+clear_rig_data :: proc(rd: ^AppRigData) {
+	clear(&rd.sections)
+}
+
 delete_rig_data :: proc(rd: ^AppRigData) {
 	delete(rd.sections)
 }
@@ -94,8 +98,9 @@ app_command :: proc(app: ^App, command: AppCommand, payload: string) {
 app_load_rig :: proc(app: ^App, path: string) {
 	if app.loaded_rig != nil {
 		delete_rig(app.loaded_rig)
-		delete_frame_lib(&app.frame_lib)
-		delete_rig_data(&app.rig_data)
+		clear_frame_lib(&app.frame_lib)
+		clear_rig_data(&app.rig_data)
+		clear_rig_status(&app.rig_status)
 	}
 	rig, ok := load_rig(path)
 	if ok {
@@ -105,6 +110,10 @@ app_load_rig :: proc(app: ^App, path: string) {
 	prepare_rig_status(&app.rig_status, app.loaded_rig)
 	for section_name, _ in app.loaded_rig.sections {
 		app.rig_data.sections[section_name] = AppSectionData{}
+	}
+	if app.scene == .Png_Tuber {
+		rig_rect := get_rig_rect(app.loaded_rig)
+		rl.SetWindowSize(math.max(i32(rig_rect.width), 100), math.max(i32(rig_rect.height), 100))
 	}
 }
 app_change_scene :: proc(app: ^App, scene: string) {
@@ -131,7 +140,7 @@ app_rig_command :: proc(app: ^App, command: string) {
 	commands := parse_command(command)
 	defer delete_rig_commands(&commands)
 	for &command in commands {
-		run_rig_command(app.loaded_rig, &command)
+		run_rig_command(app.loaded_rig, &app.rig_status, &command)
 	}
 }
 
@@ -378,9 +387,9 @@ ipc_worker :: proc(t: ^thread.Thread) {
 
 		command: string
 		content: string
-		
+
 		first_space := strings.index(message, " ")
-		if first_space == -1{
+		if first_space == -1 {
 			command = message
 		} else {
 			command = message[:first_space]
@@ -429,7 +438,9 @@ app_run :: proc() {
 
 	// Initialize window
 
-	rl.SetConfigFlags(rl.ConfigFlags{.VSYNC_HINT, .WINDOW_RESIZABLE})
+	rl.SetConfigFlags(rl.ConfigFlags{.WINDOW_RESIZABLE, .WINDOW_ALWAYS_RUN})
+
+	rl.SetTargetFPS(60)
 
 	rl.InitWindow(WINDOW_WIDTH, WINDOW_HEIGHT, WINDOW_TITLE)
 
@@ -444,8 +455,9 @@ app_run :: proc() {
 	ipc_thread.data = &app
 	thread.start(ipc_thread)
 
-	app_command(app, .Load_Rig, "./data/multi_section")
-	app_command(app, .Change_Scene, "Png_Tuber")
+	//app_command(app, .Load_Rig, "./data/example")
+	//app_command(app, .Load_Rig, "./data/multi_section")
+	//app_command(app, .Change_Scene, "Png_Tuber")
 
 	for app.running {
 		sync.mutex_lock(&command_mutex)

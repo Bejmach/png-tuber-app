@@ -138,24 +138,8 @@
       ]
     }
   },
-  "on_idle": [
-    {
-      "action": "Disable_Section",
-      "params": [
-        "ear_left",
-        "ear_right"
-      ]
-    }
-  ],
-  "on_talk": [
-    {
-      "action": "Enable_Section",
-      "params": [
-        "ear_left",
-        "ear_right"
-      ]
-    }
-  ],
+  "on_idle": [],
+  "on_talk": [],
   "on_blink": [],
   "on_action": [],
   "idle_time": 10.0,

@@ -46,6 +46,7 @@ Rig :: struct {
 
 AnimationSection :: struct {
 	visible:                bool,
+	reset_on_enter:         bool,
 	z_index:                int,
 	frames:                 []string,
 	window_anchor:          Anchor,
@@ -247,6 +248,12 @@ prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
 	rs.z_layers = active_layers[:]
 }
 
+clear_rig_status :: proc(rs: ^RigStatus){
+	clear(&rs.cur_frame)
+	clear(&rs.frame_time)
+	delete(rs.z_layers)
+}
+
 delete_rig_status :: proc(rs: ^RigStatus) {
 	delete(rs.cur_frame)
 	delete(rs.frame_time)
@@ -306,7 +313,7 @@ delete_rig :: proc(rig: ^Rig) {
 		}
 		delete(rig.sections)
 
-		for key, value in rig.params{
+		for key, value in rig.params {
 			delete(key)
 			delete(value)
 		}
@@ -319,6 +326,14 @@ delete_rig :: proc(rig: ^Rig) {
 
 		free(rig)
 	}
+}
+
+clear_frame_lib :: proc(tl: ^TextureLib){
+	for _, value in tl.textures {
+		//no need to delete key, because Rig handles that already
+		rl.UnloadTexture(value)
+	}
+	clear(&tl.textures)
 }
 
 delete_frame_lib :: proc(tl: ^TextureLib) {
@@ -406,9 +421,8 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 	if rs.blink_time < 0.0 {
 		rs.blink_time = r.blink_time
 		for &command in r.on_blink {
-			run_rig_command(r, &command)
+			run_rig_command(r, rs, &command)
 		}
-		fmt.println("Blink")
 		global_change = true
 	}
 
@@ -420,9 +434,8 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 		rs.idle_time = 0.0
 		if !rs.is_talking {
 			for &command in r.on_talk {
-				run_rig_command(r, &command)
+				run_rig_command(r, rs, &command)
 			}
-			fmt.println("Talk")
 			global_change = true
 		}
 
@@ -433,18 +446,16 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 			rs.idle_time += delta
 			if rs.is_talking {
 				for &command in r.on_idle {
-					run_rig_command(r, &command)
+					run_rig_command(r, rs, &command)
 				}
-				fmt.println("Idle")
 				global_change = true
 			}
 
 			if rs.idle_time >= r.idle_time {
 				for &command in r.on_action {
-					run_rig_command(r, &command)
+					run_rig_command(r, rs, &command)
 				}
 				rs.idle_time = 0.0
-				fmt.println("Action")
 				global_change = true
 			}
 			rs.is_talking = false
@@ -487,9 +498,9 @@ next_frame :: proc(rs: ^RigStatus, r: ^Rig, section_name: string) {
 	if cur_frame + 1 == uint(sec_len) {
 		rs.cur_frame[section_name] = 0
 		for &command in section.on_section_end {
-			run_rig_command(r, &command)
+			run_rig_command(r, rs, &command)
 		}
-	} else{
+	} else {
 		rs.cur_frame[section_name] += 1
 	}
 }
