@@ -6,6 +6,8 @@ import "core:strings"
 RigAction :: enum {
 	Enable_Section,
 	Disable_Section,
+	Toggle_Section,
+	Run_Bind,
 }
 
 RigCommand :: struct {
@@ -38,7 +40,10 @@ run_rig_command :: proc(r: ^Rig, rs: ^RigStatus, command: ^RigCommand) {
 		comm_enable_section(r, rs, parsed_params)
 	case .Disable_Section:
 		comm_disable_section(r, rs, parsed_params)
-
+	case .Toggle_Section:
+		comm_toggle_section(r, rs, parsed_params)
+	case .Run_Bind:
+		comm_run_bind(r, rs, parsed_params)
 	}
 }
 
@@ -60,6 +65,30 @@ comm_disable_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string) {
 		section, ok := &r.sections[section_name]
 		if ok {
 			section.visible = false
+		}
+	}
+}
+
+comm_toggle_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string){
+	for section_name in sections {
+		section, ok := &r.sections[section_name]
+		if ok {
+			section.visible = !section.visible
+			if section.visible && section.reset_on_enter {
+				rs.cur_frame[section_name] = 0
+				rs.frame_time[section_name] = 0
+			}
+		}
+	}
+}
+
+comm_run_bind :: proc(r: ^Rig, rs: ^RigStatus, binds: []string){
+	for bind_name in binds{
+		bind, ok := r.binds[bind_name]
+		for &command in bind.commands{
+			if command.action != .Run_Bind{
+				run_rig_command(r, rs, &command)
+			}
 		}
 	}
 }

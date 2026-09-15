@@ -456,8 +456,8 @@ app_run :: proc() {
 	thread.start(ipc_thread)
 
 	//app_command(app, .Load_Rig, "./data/example")
-	//app_command(app, .Load_Rig, "./data/multi_section")
-	//app_command(app, .Change_Scene, "Png_Tuber")
+	app_command(app, .Load_Rig, "./data/multi_section")
+	app_command(app, .Change_Scene, "Png_Tuber")
 
 	for app.running {
 		sync.mutex_lock(&command_mutex)

@@ -28,6 +28,7 @@ Rig :: struct {
 	frames:             map[string]Frame,
 	sections:           map[string]AnimationSection,
 	params:             map[string]string,
+	binds:              map[string]Bind,
 	on_talk:            []RigCommand,
 	on_blink:           []RigCommand, // only from idle
 	on_action:          []RigCommand,
@@ -42,6 +43,70 @@ Rig :: struct {
 	vt_lerp_strength:   f32,
 	volume_threshhold:  f32,
 	rig_path:           string,
+}
+
+BindAction :: enum {
+	Pressed,
+	Released,
+	Just_Pressed,
+	Just_Released,
+}
+
+Bind :: struct {
+	action:   BindAction,
+	keys:     []rl.KeyboardKey,
+	commands: []RigCommand,
+}
+
+delete_bind :: proc(b: ^Bind) {
+	delete(b.keys)
+	delete_rig_commands(&b.commands)
+}
+
+is_bind_pressed :: proc(b: ^Bind) -> bool {
+	for key in b.keys {
+		if !rl.IsKeyDown(key) {
+			return false
+		}
+	}
+	return true
+}
+
+is_bind_released :: proc(b: ^Bind) -> bool{
+	for key in b.keys {
+		if rl.IsKeyDown(key) {
+			return false
+		}
+	}
+	return true
+}
+
+is_bind_just_pressed :: proc(b: ^Bind) -> bool{
+	any_just_pressed := false
+	for key in b.keys {
+		if !rl.IsKeyPressed(key) {
+			if !rl.IsKeyDown(key){
+				return false
+			}
+		} else {
+			any_just_pressed = true
+		}
+	}
+	return any_just_pressed
+}
+
+is_bind_just_released :: proc(b: ^Bind) -> bool{
+	any_just_released := false
+	for key in b.keys {
+		if !rl.IsKeyReleased(key) {
+			if rl.IsKeyDown(key){
+				return false
+			}
+		} else {
+			any_just_released = true
+		}
+	}
+	return any_just_released
 }
 
 AnimationSection :: struct {
@@ -248,7 +313,7 @@ prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
 	rs.z_layers = active_layers[:]
 }
 
-clear_rig_status :: proc(rs: ^RigStatus){
+clear_rig_status :: proc(rs: ^RigStatus) {
 	clear(&rs.cur_frame)
 	clear(&rs.frame_time)
 	delete(rs.z_layers)
@@ -319,6 +384,12 @@ delete_rig :: proc(rig: ^Rig) {
 		}
 		delete(rig.params)
 
+		for key, &value in rig.binds {
+			delete(key)
+			delete_bind(&value)
+		}
+		delete(rig.binds)
+
 		delete_rig_commands(&rig.on_idle)
 		delete_rig_commands(&rig.on_talk)
 		delete_rig_commands(&rig.on_action)
@@ -328,7 +399,7 @@ delete_rig :: proc(rig: ^Rig) {
 	}
 }
 
-clear_frame_lib :: proc(tl: ^TextureLib){
+clear_frame_lib :: proc(tl: ^TextureLib) {
 	for _, value in tl.textures {
 		//no need to delete key, because Rig handles that already
 		rl.UnloadTexture(value)
@@ -412,6 +483,35 @@ get_frame :: proc(r: ^Rig, section_name: string, frame_id: uint) -> (frame: ^Fra
 process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_changes: []string) {
 	if r == nil {
 		return {}
+	}
+
+	for key, &bind in r.binds{
+		switch bind.action {
+		case .Pressed:
+			if is_bind_pressed(&bind){
+				for &command in bind.commands{
+					run_rig_command(r, rs, &command)
+				}
+			}
+		case .Released:
+			if is_bind_released(&bind){
+				for &command in bind.commands{
+					run_rig_command(r, rs, &command)
+				}
+			}
+		case .Just_Pressed:
+			if is_bind_just_pressed(&bind){
+				for &command in bind.commands{
+					run_rig_command(r, rs, &command)
+				}
+			}
+		case .Just_Released:
+			if is_bind_just_released(&bind){
+				for &command in bind.commands{
+					run_rig_command(r, rs, &command)
+				}
+			}
+		}
 	}
 
 	global_change := false

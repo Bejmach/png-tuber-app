@@ -9,17 +9,6 @@ import rl "vendor:raylib"
 Settings :: struct {
 	background_color: rl.Color,
 	rig_paths:        []string,
-	binds:            []Bind,
-}
-
-Bind :: struct {
-	input:   []rl.KeyboardKey,
-	action:  AppCommand,
-	payload: string,
-}
-
-delete_bind :: proc(b: ^Bind) {
-	delete(b.input)
 }
 
 default_settings :: proc() -> ^Settings{
@@ -85,11 +74,6 @@ delete_settings :: proc(s: ^Settings) {
 		delete(path)
 	}
 	delete(s.rig_paths)
-
-	for &bind in s.binds {
-		delete_bind(&bind)
-	}
-	delete(s.binds)
 
 	free(s)
 }
