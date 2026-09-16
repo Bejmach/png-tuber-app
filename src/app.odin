@@ -410,7 +410,7 @@ send_ipc :: proc(args_start: int) {
 	sender, err := net.dial_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, PORT})
 
 	if err != nil {
-		fmt.eprintln("Failed to run ipc listener", err)
+		fmt.eprintln("Failed to run ipc sender", err)
 		return
 	}
 	defer net.close(sender)

@@ -1,7 +1,8 @@
 package png_tuber
 
-import "core:crypto/legacy/keccak"
+import "core:slice"
 import "base:runtime"
+import "core:crypto/legacy/keccak"
 import "core:fmt"
 import "core:math"
 import "core:math/rand"
@@ -16,8 +17,8 @@ WINDOW_WIDTH: i32 = 800
 WINDOW_HEIGHT: i32 = 600
 WINDOW_TITLE: cstring = "png-tuber studio"
 
-print_help :: proc(){
-	lines := []string{
+print_help :: proc() {
+	lines := []string {
 		"Usage: {executable} <[flags]> [params]",
 		"",
 		"Flags:",
@@ -25,11 +26,17 @@ print_help :: proc(){
 		"",
 		"Params:",
 		"    run (default)             runs the app",
-		"    ipc [app_command]         sends command to running instance"
+		"    ipc [app_command]         sends command to running instance",
 	}
 
-	for line in lines{
+	for line in lines {
 		fmt.println(line)
+	}
+}
+
+print_ipc_help :: proc() {
+	for command in AppCommand{
+		fmt.println(command)
 	}
 }
 
@@ -50,35 +57,39 @@ main :: proc() {
 		}
 	}
 
-	// LEAVE THIS PRINT IN PLACE
-	// IF YOU DELETE THIS STRING IPC CANT CONNECT TO RUNNING INSTANCE
-	// AND THROWS ERROR "Refused"
-	fmt.println(os.args)
+	// Sooo.... https://www.reddit.com/r/odinlang/comments/1whuq6q/strange_odin_bug/
+	// Basically all cases are
+	// switch -> does not allow to run ipc either way
+	// print -> does not allow to run ipc either way
+	// print + switch -> allow only to run ipc with main process on -debug flag
+	// none -> allow to run ipc either way
+	//
+	// also do not use -o:speed flag when building it, because then it ALSO does not work
 
-	for i:=1; i<len(os.args); i+=1{
+	//fmt.println(os.args)
+
+	for i := 1; i < len(os.args); i += 1 {
 		arg := os.args[i]
-		switch arg{
+		switch arg {
 		case "-h", "--help":
-			print_help()
+			if slice.contains(os.args, "ipc"){
+				print_ipc_help()
+			}
+			else{
+				print_help()
+			}
 			return
 		case "ipc":
-			if i+1 < len(os.args){
-				next_arg := os.args[i+1]
-				switch next_arg{
-				case "-h", "--help", "help":
-					for command in AppCommand{
-						fmt.println(command)
-					}
-				case:
-					send_ipc(i+1)
-				}
+			if i + 1 < len(os.args) {
+				// switch case "-h", "--help"
+				send_ipc(i + 1)
 			} else {
 				fmt.println("No command for ipc provided")
 			}
 			return
 		}
 	}
-	
+
 
 	app_run()
 }
