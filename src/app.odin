@@ -11,6 +11,8 @@ import "core:thread"
 import ma "vendor:miniaudio"
 import rl "vendor:raylib"
 
+
+PORT := 9001
 command_mutex: sync.Mutex
 
 IpcCommand :: struct {
@@ -359,7 +361,7 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 }
 
 ipc_worker :: proc(t: ^thread.Thread) {
-	listener, err := net.listen_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, 9001})
+	listener, err := net.listen_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, PORT})
 	app_data := (cast(^App)t.data)
 
 	if err != nil {
@@ -367,6 +369,8 @@ ipc_worker :: proc(t: ^thread.Thread) {
 		return
 	}
 	defer net.close(listener)
+
+	fmt.println("Ipc worker started on port", PORT)
 
 	for app_data.running {
 		conn, end, err := net.accept_tcp(listener)
@@ -402,8 +406,8 @@ ipc_worker :: proc(t: ^thread.Thread) {
 	}
 }
 
-send_ipc :: proc(command: string) {
-	sender, err := net.dial_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, 9001})
+send_ipc :: proc(args_start: int) {
+	sender, err := net.dial_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, PORT})
 
 	if err != nil {
 		fmt.eprintln("Failed to run ipc listener", err)
@@ -411,7 +415,10 @@ send_ipc :: proc(command: string) {
 	}
 	defer net.close(sender)
 
-	net.send_tcp(sender, transmute([]u8)command)
+	joined_command := strings.join(os.args[args_start:], " ")
+	defer delete(joined_command)
+
+	net.send_tcp(sender, transmute([]u8)joined_command)
 }
 
 app_run :: proc() {

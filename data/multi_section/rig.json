@@ -146,7 +146,8 @@
     "toggle_ears": {
       "action": "Just_Pressed",
       "keys": [
-        "I"
+        "I",
+		"G"
       ],
       "commands": [
         {

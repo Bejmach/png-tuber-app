@@ -1,5 +1,6 @@
 package png_tuber
 
+import "core:crypto/legacy/keccak"
 import "base:runtime"
 import "core:fmt"
 import "core:math"
@@ -49,6 +50,11 @@ main :: proc() {
 		}
 	}
 
+	// LEAVE THIS PRINT IN PLACE
+	// IF YOU DELETE THIS STRING IPC CANT CONNECT TO RUNNING INSTANCE
+	// AND THROWS ERROR "Refused"
+	fmt.println(os.args)
+
 	for i:=1; i<len(os.args); i+=1{
 		arg := os.args[i]
 		switch arg{
@@ -57,7 +63,15 @@ main :: proc() {
 			return
 		case "ipc":
 			if i+1 < len(os.args){
-				send_ipc(os.args[i+1])
+				next_arg := os.args[i+1]
+				switch next_arg{
+				case "-h", "--help", "help":
+					for command in AppCommand{
+						fmt.println(command)
+					}
+				case:
+					send_ipc(i+1)
+				}
 			} else {
 				fmt.println("No command for ipc provided")
 			}
