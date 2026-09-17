@@ -360,9 +360,14 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 	}
 }
 
+WorkerData :: struct {
+	app:        ^App,
+	//wait_group: ^sync.Wait_Group,
+}
+
 ipc_worker :: proc(t: ^thread.Thread) {
 	listener, err := net.listen_tcp(net.Endpoint{net.IP4_Address{127, 0, 0, 1}, PORT})
-	app_data := (cast(^App)t.data)
+	worker_data := (cast(^WorkerData)t.data)
 
 	if err != nil {
 		fmt.eprintln("Failed to run ipc listener", err)
@@ -372,7 +377,9 @@ ipc_worker :: proc(t: ^thread.Thread) {
 
 	fmt.println("Ipc worker started on port", PORT)
 
-	for app_data.running {
+	for worker_data.app.running {
+		fmt.println(worker_data.app.running)
+
 		conn, end, err := net.accept_tcp(listener)
 		if err != nil {
 			fmt.eprintln("Accept failed:", err)
@@ -404,6 +411,8 @@ ipc_worker :: proc(t: ^thread.Thread) {
 		append(&ipc_commands, IpcCommand{command, content})
 		sync.mutex_unlock(&command_mutex)
 	}
+
+	//sync.wait_group_done(worker_data.wait_group)
 }
 
 send_ipc :: proc(args_start: int) {
@@ -456,11 +465,17 @@ app_run :: proc() {
 		delete_app(app)
 	}
 
+	//wg: sync.Wait_Group
+
 	ipc_thread := thread.create(ipc_worker)
 	ipc_thread.init_context = context
 	ipc_thread.user_index = 1
-	ipc_thread.data = &app
+	ipc_thread.data = &WorkerData{app}
 	thread.start(ipc_thread)
+	defer thread.destroy(ipc_thread)
+
+	//sync.wait_group_add(&wg, 1)
+
 
 	//app_command(app, .Load_Rig, "./data/example")
 	app_command(app, .Load_Rig, "./data/multi_section")
@@ -506,8 +521,9 @@ app_run :: proc() {
 	}
 
 	rl.CloseWindow()
+
+	//sync.wait_group_done(&wg)
 	thread.terminate(ipc_thread, 0)
-	thread.destroy(ipc_thread)
 
 	delete(ipc_commands)
 }

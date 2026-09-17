@@ -72,17 +72,16 @@ main :: proc() {
 		arg := os.args[i]
 		switch arg {
 		case "-h", "--help":
-			if slice.contains(os.args, "ipc"){
-				print_ipc_help()
-			}
-			else{
-				print_help()
-			}
+			print_help()
 			return
 		case "ipc":
 			if i + 1 < len(os.args) {
-				// switch case "-h", "--help"
-				send_ipc(i + 1)
+				switch os.args[i+1]{
+				case "-h", "--help", "help":
+					print_ipc_help()
+				case:
+					send_ipc(i + 1)
+				}
 			} else {
 				fmt.println("No command for ipc provided")
 			}
