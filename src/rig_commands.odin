@@ -7,7 +7,9 @@ RigAction :: enum {
 	Enable_Section,
 	Disable_Section,
 	Toggle_Section,
-	Run_Bind,
+	Print_Params,
+	Set_Param,
+	Run_Bind, // can't run from bind
 }
 
 RigCommand :: struct {
@@ -42,6 +44,10 @@ run_rig_command :: proc(r: ^Rig, rs: ^RigStatus, command: ^RigCommand) {
 		comm_disable_section(r, rs, parsed_params)
 	case .Toggle_Section:
 		comm_toggle_section(r, rs, parsed_params)
+	case .Set_Param:
+		comm_set_param(r, parsed_params)
+	case .Print_Params:
+		fmt.println(r.params)
 	case .Run_Bind:
 		comm_run_bind(r, rs, parsed_params)
 	}
@@ -69,7 +75,7 @@ comm_disable_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string) {
 	}
 }
 
-comm_toggle_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string){
+comm_toggle_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string) {
 	for section_name in sections {
 		section, ok := &r.sections[section_name]
 		if ok {
@@ -82,11 +88,21 @@ comm_toggle_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string){
 	}
 }
 
-comm_run_bind :: proc(r: ^Rig, rs: ^RigStatus, binds: []string){
-	for bind_name in binds{
+comm_set_param :: proc(r: ^Rig, params: []string) {
+	if len(params) > 0 && len(params) % 2 == 0 {
+		for i := 0; i < len(params); i += 2 {
+			key := strings.clone(params[i])
+			value := strings.clone(params[i+1])
+			r.params[key] = value
+		}
+	}
+}
+
+comm_run_bind :: proc(r: ^Rig, rs: ^RigStatus, binds: []string) {
+	for bind_name in binds {
 		bind, ok := r.binds[bind_name]
-		for &command in bind.commands{
-			if command.action != .Run_Bind{
+		for &command in bind.commands {
+			if command.action != .Run_Bind {
 				run_rig_command(r, rs, &command)
 			}
 		}
@@ -113,6 +129,19 @@ parse_command :: proc(command: string) -> []RigCommand {
 			continue
 		}
 		params_start := strings.index(command, "(")
+
+		if params_start == -1 {
+			action, ok := reflect.enum_from_name(RigAction, command)
+
+			if !ok {
+				continue
+			}
+
+			parsed_command := RigCommand{action, {}}
+			append(&parsed_commands, parsed_command)
+			continue
+		}
+
 		params_end := strings.index(command, ")")
 
 		action_name := command[:params_start]

@@ -58,15 +58,7 @@ main :: proc() {
 	}
 
 	// Sooo.... https://www.reddit.com/r/odinlang/comments/1whuq6q/strange_odin_bug/
-	// Basically all cases are
-	// switch -> does not allow to run ipc either way
-	// print -> does not allow to run ipc either way
-	// print + switch -> allow only to run ipc with main process on -debug flag
-	// none -> allow to run ipc either way
-	//
-	// also do not use -o:speed flag when building it, because then it ALSO does not work
-
-	//fmt.println(os.args)
+	// thread overflow case, just read it there
 
 	for i := 1; i < len(os.args); i += 1 {
 		arg := os.args[i]

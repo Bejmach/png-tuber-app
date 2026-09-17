@@ -378,8 +378,6 @@ ipc_worker :: proc(t: ^thread.Thread) {
 	fmt.println("Ipc worker started on port", PORT)
 
 	for worker_data.app.running {
-		fmt.println(worker_data.app.running)
-
 		conn, end, err := net.accept_tcp(listener)
 		if err != nil {
 			fmt.eprintln("Accept failed:", err)
