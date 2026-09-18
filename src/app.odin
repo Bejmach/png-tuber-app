@@ -217,7 +217,7 @@ get_section_transform :: proc(
 		return Transformer{}
 	}
 
-	next_frame, _ := get_frame(r, section_name, rs.cur_frame[section_name] + 1)
+	sec_len := len(section.frames)
 
 	db := get_db() //decibels
 
@@ -234,10 +234,6 @@ get_section_transform :: proc(
 		&cur_frame.transform,
 		&rig_data_section.transformers[0],
 	)
-	next_frame_transform := add_transformers(
-		&next_frame.transform,
-		&rig_data_section.transformers[1],
-	)
 
 	volume_tranform := solve_volume_transformers(&section.volume_transforms, db)
 	if !r.lerp_vt {
@@ -251,12 +247,43 @@ get_section_transform :: proc(
 		)
 	}
 
-	cur_transform := lerp_transformers(
+	cur_transform: Transformer
+
+	next_frame_id: int
+
+	switch section.loop_mode {
+	case .Loop:
+		next_frame_id =
+			(int(rs.cur_frame[section_name]) + rs.frame_direction[section_name]) % sec_len
+	case .None:
+		next_frame_id = math.min(
+			len(section.frames) - 1,
+			int(rs.cur_frame[section_name]) + rs.frame_direction[section_name],
+		)
+	case .Revert:
+		next_frame_id = (int(rs.cur_frame[section_name]) + rs.frame_direction[section_name])
+		if next_frame_id >= len(section.frames){
+			next_frame_id = (len(section.frames) - 1) * 2 - next_frame_id
+		} else if next_frame_id < 0 {
+			next_frame_id *= -1
+		}
+	}
+
+
+	next_frame, _ := get_frame(r, section_name, uint(next_frame_id))
+
+	next_frame_transform := add_transformers(
+		&next_frame.transform,
+		&rig_data_section.transformers[1],
+	)
+
+	cur_transform = lerp_transformers(
 		&cur_frame_transform,
 		&next_frame_transform,
 		frame_factor,
 		cur_frame_transform.lerp_mode,
 	)
+
 	cur_transform = add_transformers(&cur_transform, &rig_data_section.cur_volume_transformer)
 
 	if len(section.connect_to_section) != 0 {
@@ -361,7 +388,7 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 }
 
 WorkerData :: struct {
-	app:        ^App,
+	app: ^App,
 	//wait_group: ^sync.Wait_Group,
 }
 

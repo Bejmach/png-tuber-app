@@ -17,6 +17,7 @@ LerpMode :: enum {
 	Constant,
 	Linear,
 	Sin,
+	Cos,
 	SmoothStep,
 }
 
@@ -72,7 +73,7 @@ is_bind_pressed :: proc(b: ^Bind) -> bool {
 	return true
 }
 
-is_bind_released :: proc(b: ^Bind) -> bool{
+is_bind_released :: proc(b: ^Bind) -> bool {
 	for key in b.keys {
 		if rl.IsKeyDown(key) {
 			return false
@@ -81,11 +82,11 @@ is_bind_released :: proc(b: ^Bind) -> bool{
 	return true
 }
 
-is_bind_just_pressed :: proc(b: ^Bind) -> bool{
+is_bind_just_pressed :: proc(b: ^Bind) -> bool {
 	any_just_pressed := false
 	for key in b.keys {
 		if !rl.IsKeyPressed(key) {
-			if !rl.IsKeyDown(key){
+			if !rl.IsKeyDown(key) {
 				return false
 			}
 		} else {
@@ -95,11 +96,11 @@ is_bind_just_pressed :: proc(b: ^Bind) -> bool{
 	return any_just_pressed
 }
 
-is_bind_just_released :: proc(b: ^Bind) -> bool{
+is_bind_just_released :: proc(b: ^Bind) -> bool {
 	any_just_released := false
 	for key in b.keys {
 		if !rl.IsKeyReleased(key) {
-			if rl.IsKeyDown(key){
+			if rl.IsKeyDown(key) {
 				return false
 			}
 		} else {
@@ -109,8 +110,15 @@ is_bind_just_released :: proc(b: ^Bind) -> bool{
 	return any_just_released
 }
 
+LoopMode :: enum {
+	Loop,
+	None,
+	Revert,
+}
+
 AnimationSection :: struct {
 	visible:                bool,
+	loop_mode:              LoopMode,
 	reset_on_enter:         bool,
 	z_index:                int,
 	frames:                 []string,
@@ -250,33 +258,26 @@ lerp_transformers :: proc(
 ) -> Transformer {
 	nt: Transformer // new transormer
 
+	factor: f32 = 0.0
+
 	switch mode {
 	case .Constant:
-		nt.position = t1.position
-		nt.rotation = t1.rotation
-		nt.width = t1.width
-		nt.height = t1.height
+		factor = 0
 	case .Linear:
-		nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * f)
-		nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * f)
-		nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * f)
-		nt.width = t1.width + ((t2.width - t1.width) * f)
-		nt.height = t1.height + ((t2.height - t1.height) * f)
+		factor = f	
 	case .Sin:
-		nf := la.sin(f * la.PI / 2.0) // new factor
-		nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * nf)
-		nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * nf)
-		nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * nf)
-		nt.width = t1.width + ((t2.width - t1.width) * nf)
-		nt.height = t1.height + ((t2.height - t1.height) * nf)
+		factor = la.sin(f * la.PI / 2.0)
+	case .Cos:
+		factor = 1.0 - la.cos(f * la.PI / 2.0)
 	case .SmoothStep:
-		nf := f32(math.smoothstep(0.0, 1.0, f64(f)))
-		nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * nf)
-		nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * nf)
-		nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * nf)
-		nt.width = t1.width + ((t2.width - t1.width) * nf)
-		nt.height = t1.height + ((t2.height - t1.height) * nf)
+		factor = f32(math.smoothstep(0.0, 1.0, f64(f)))
 	}
+
+	nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * factor)
+	nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * factor)
+	nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * factor)
+	nt.width = t1.width + ((t2.width - t1.width) * factor)
+	nt.height = t1.height + ((t2.height - t1.height) * factor)
 
 
 	return nt
@@ -285,6 +286,7 @@ lerp_transformers :: proc(
 RigStatus :: struct {
 	is_talking:         bool,
 	frame_time:         map[string]f32,
+	frame_direction:    map[string]int,
 	idle_time:          f32,
 	blink_time:         f32,
 	cur_frame:          map[string]uint,
@@ -293,17 +295,21 @@ RigStatus :: struct {
 }
 
 default_rig_status :: proc() -> RigStatus {
-	return RigStatus{false, {}, 0.0, 0.0, {}, 0.0, {}}
+	return RigStatus{false, {}, {}, 0.0, 0.0, {}, 0.0, {}}
 }
 
 prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
-	for key, _ in r.sections {
-		rs.frame_time[key] = 0.0
-		rs.cur_frame[key] = 0
-	}
-
 	active_layers := make([dynamic]int)
 	for key, value in r.sections {
+		rs.frame_time[key] = 0.0
+		if len(value.frames) > 0 {
+			frame, ok := r.frames[value.frames[0]]
+			if ok {
+				rs.frame_time[key] = frame.time
+			}
+		}
+		rs.cur_frame[key] = 0
+		rs.frame_direction[key] = 1
 		ok := slice.contains(active_layers[:], value.z_index)
 		if !ok {
 			append(&active_layers, value.z_index)
@@ -316,12 +322,14 @@ prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
 clear_rig_status :: proc(rs: ^RigStatus) {
 	clear(&rs.cur_frame)
 	clear(&rs.frame_time)
+	clear(&rs.frame_direction)
 	delete(rs.z_layers)
 }
 
 delete_rig_status :: proc(rs: ^RigStatus) {
 	delete(rs.cur_frame)
 	delete(rs.frame_time)
+	delete(rs.frame_direction)
 	delete(rs.z_layers)
 }
 
@@ -485,29 +493,29 @@ process_rig_status :: proc(rs: ^RigStatus, r: ^Rig, delta: f32) -> (sections_cha
 		return {}
 	}
 
-	for key, &bind in r.binds{
+	for key, &bind in r.binds {
 		switch bind.action {
 		case .Pressed:
-			if is_bind_pressed(&bind){
-				for &command in bind.commands{
+			if is_bind_pressed(&bind) {
+				for &command in bind.commands {
 					run_rig_command(r, rs, &command)
 				}
 			}
 		case .Released:
-			if is_bind_released(&bind){
-				for &command in bind.commands{
+			if is_bind_released(&bind) {
+				for &command in bind.commands {
 					run_rig_command(r, rs, &command)
 				}
 			}
 		case .Just_Pressed:
-			if is_bind_just_pressed(&bind){
-				for &command in bind.commands{
+			if is_bind_just_pressed(&bind) {
+				for &command in bind.commands {
 					run_rig_command(r, rs, &command)
 				}
 			}
 		case .Just_Released:
-			if is_bind_just_released(&bind){
-				for &command in bind.commands{
+			if is_bind_just_released(&bind) {
+				for &command in bind.commands {
 					run_rig_command(r, rs, &command)
 				}
 			}
@@ -595,13 +603,38 @@ next_frame :: proc(rs: ^RigStatus, r: ^Rig, section_name: string) {
 
 	sec_len := len(section.frames)
 
-	if cur_frame + 1 == uint(sec_len) {
-		rs.cur_frame[section_name] = 0
+	if sec_len <= 1 {
+		return
+	}
+
+	next_frame := int(cur_frame) + rs.frame_direction[section_name]
+
+	if next_frame >= sec_len {
+		#partial switch section.loop_mode {
+		case .Loop:
+			rs.cur_frame[section_name] = 0
+		case .Revert:
+			prev_frame := (sec_len + int(cur_frame) - 1) % sec_len
+			rs.cur_frame[section_name] = uint(prev_frame)
+			rs.frame_direction[section_name] *= -1
+		}
+		for &command in section.on_section_end {
+			run_rig_command(r, rs, &command)
+		}
+	} else if next_frame < 0 {
+		#partial switch section.loop_mode {
+		case .Loop:
+			fmt.println("That should not happen")
+		case .Revert:
+			prev_frame := (sec_len + int(cur_frame) + 1) % sec_len
+			rs.cur_frame[section_name] = uint(prev_frame)
+			rs.frame_direction[section_name] *= -1
+		}
 		for &command in section.on_section_end {
 			run_rig_command(r, rs, &command)
 		}
 	} else {
-		rs.cur_frame[section_name] += 1
+		rs.cur_frame[section_name] = uint(next_frame)
 	}
 }
 

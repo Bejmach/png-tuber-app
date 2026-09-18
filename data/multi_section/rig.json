@@ -2,23 +2,23 @@
   "frames": {
     "face_1": {
       "src": "face.png",
-      "time": 0.5,
+      "time": 0.3,
       "transform": {
-        "lerp_mode": "SmoothStep",
+        "lerp_mode": "Sin",
         "width": 256,
         "height": 256
       }
     },
     "face_2": {
       "src": "face.png",
-      "time": 0.5,
+      "time": 0.25,
       "transform": {
-        "lerp_mode": "SmoothStep",
+        "lerp_mode": "Cos",
         "width": 256,
         "height": 256,
         "position": [
           0,
-          20
+          -20
         ]
       }
     },
@@ -77,10 +77,12 @@
   "sections": {
     "face": {
       "visible": true,
+      "loop_mode": "None",
       "z_index": 0,
       "frames": [
         "face_1",
-        "face_2"
+        "face_2",
+        "face_1"
       ],
       "window_anchor": "Center_Center",
       "rotation_anchor": "Center_Center"
@@ -139,7 +141,14 @@
     }
   },
   "on_idle": [],
-  "on_talk": [],
+  "on_talk": [
+    {
+      "action": "Reset_Section",
+      "params": [
+        "face"
+      ]
+    }
+  ],
   "on_blink": [],
   "on_action": [],
   "binds": {
@@ -147,7 +156,7 @@
       "action": "Just_Pressed",
       "keys": [
         "I",
-		"G"
+        "G"
       ],
       "commands": [
         {
@@ -158,6 +167,20 @@
           ]
         }
       ]
+    },
+    "reset_face": {
+      "action": "Just_Pressed",
+      "keys": [
+        "R"
+      ],
+      "commands": [
+        {
+          "action": "Reset_Section",
+          "params": [
+            "face"
+          ]
+        }
+      ]
     }
   },
   "idle_time": 10.0,
@@ -165,5 +188,6 @@
   "lerp_vt": true,
   "vt_lerp_mode": "SmoothStep",
   "vt_lerp_strength": 10.0,
+  "preserve_talk_time": 0.5,
   "volume_threshhold": -50
 }
