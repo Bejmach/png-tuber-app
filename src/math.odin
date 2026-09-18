@@ -26,3 +26,16 @@ math_anchor_position :: proc(width, height: f32, anchor: Anchor) -> la.Vector2f3
 	}
 	return {0.0, 0.0}
 }
+
+// Updates object velocity, and returns new displacement
+math_damped_oscillator :: proc(
+	velocity: ^f32,
+	displacement, spring, damp, delta: f32,
+) -> (
+	new_displacement: f32,
+) {
+	force := -spring * displacement - damp * velocity^
+	velocity^ += force * delta
+	new_displacement = displacement + velocity^ * delta
+	return new_displacement
+}

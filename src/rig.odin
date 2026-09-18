@@ -14,11 +14,36 @@ import "core:strings"
 import rl "vendor:raylib"
 
 LerpMode :: enum {
-	Constant,
+	None,
 	Linear,
 	Sin,
 	Cos,
 	SmoothStep,
+	DampedOscillator,
+}
+
+get_lerp_mode_factor :: proc(lerp_mode: LerpMode, f: f32) -> (factor: f32) {
+	switch lerp_mode {
+	case .None, .DampedOscillator:
+		factor = 1
+	case .Linear:
+		factor = f
+	case .Sin:
+		factor = la.sin(f * la.PI / 2.0)
+	case .Cos:
+		factor = 1.0 - la.cos(f * la.PI / 2.0)
+	case .SmoothStep:
+		factor = f32(math.smoothstep(0.0, 1.0, f64(f)))
+	}
+
+	return factor
+}
+
+LerpData :: struct {
+	x_mode, y_mode, rotation_mode, width_mode, height_mode: LerpMode,
+	spring:                                                 f32, // used for damped oscillator
+	damp:                                                   f32, // used for damped oscillator
+	strength:                                               f32, // used for finalize_lerp
 }
 
 TextureLib :: struct {
@@ -39,9 +64,6 @@ Rig :: struct {
 	position_offset:    la.Vector2f32,
 	rotation_offset:    la.Vector2f32,
 	preserve_talk_time: f32,
-	lerp_vt:            bool,
-	vt_lerp_mode:       LerpMode,
-	vt_lerp_strength:   f32,
 	volume_threshhold:  f32,
 	rig_path:           string,
 }
@@ -128,6 +150,8 @@ AnimationSection :: struct {
 	rotation_anchor_offset: la.Vector2f32,
 	volume_transforms:      []VolumeTransformer, // supposed to go from quietest to loudest
 	connect_to_section:     string,
+	final_lerp_data:        LerpData,
+	final_vt_lerp_data:     LerpData,
 	on_section_end:         []RigCommand,
 }
 
@@ -158,10 +182,14 @@ delete_frame :: proc(f: ^Frame) {
 }
 
 Transformer :: struct {
-	lerp_mode:     LerpMode, //
+	lerp_data:     LerpData, //
 	position:      la.Vector2f32,
 	width, height: f32,
 	rotation:      f32,
+}
+
+TransformerVelocities :: struct {
+	x, y, width, height, rotation: f32,
 }
 
 RandTransformer :: struct {
@@ -191,13 +219,13 @@ colapse_rand_transformer :: proc(rt: ^RandTransformer) -> Transformer {
 }
 
 VolumeTransformer :: struct {
-	lerp_mode:                     LerpMode,
+	lerp_data:                     LerpData,
 	volume:                        f32, // in decibels
 	x, y, width, height, rotation: f32,
 }
 
 colapse_volume_transformer :: proc(vt: ^VolumeTransformer) -> Transformer {
-	return Transformer{vt.lerp_mode, {vt.x, vt.y}, vt.width, vt.height, vt.rotation}
+	return Transformer{vt.lerp_data, {vt.x, vt.y}, vt.width, vt.height, vt.rotation}
 }
 
 solve_volume_transformers :: proc(vt_s: ^[]VolumeTransformer, db: f32) -> Transformer {
@@ -221,7 +249,8 @@ solve_volume_transformers :: proc(vt_s: ^[]VolumeTransformer, db: f32) -> Transf
 				t1 := colapse_volume_transformer(&cur_vt)
 				t2 := colapse_volume_transformer(&next_vt)
 
-				return lerp_transformers(&t1, &t2, factor, t1.lerp_mode)
+				lerp_transformers(&t1, &t2, &nt, factor, t1.lerp_data)
+				return nt
 			}
 		}
 
@@ -240,7 +269,7 @@ solve_volume_transformers :: proc(vt_s: ^[]VolumeTransformer, db: f32) -> Transf
 add_transformers :: proc(t1: ^Transformer, t2: ^Transformer) -> Transformer {
 	nt: Transformer
 
-	nt.lerp_mode = t1.lerp_mode
+	nt.lerp_data = t1.lerp_data
 	nt.position.x = t1.position.x + t2.position.x
 	nt.position.y = t1.position.y + t2.position.y
 	nt.width = t1.width + t2.width
@@ -253,34 +282,98 @@ add_transformers :: proc(t1: ^Transformer, t2: ^Transformer) -> Transformer {
 lerp_transformers :: proc(
 	t1: ^Transformer,
 	t2: ^Transformer,
+	buffer_t: ^Transformer,
 	f: f32,
-	mode: LerpMode,
-) -> Transformer {
-	nt: Transformer // new transormer
+	lerp_data: LerpData,
+	delta: f32 = 0.0,
+	velocities: ^TransformerVelocities = nil,
+) {
 
-	factor: f32 = 0.0
-
-	switch mode {
-	case .Constant:
-		factor = 0
-	case .Linear:
-		factor = f	
-	case .Sin:
-		factor = la.sin(f * la.PI / 2.0)
-	case .Cos:
-		factor = 1.0 - la.cos(f * la.PI / 2.0)
-	case .SmoothStep:
-		factor = f32(math.smoothstep(0.0, 1.0, f64(f)))
+	factor: f32
+	if delta > 0.0 {
+		factor = delta * lerp_data.strength
+	} else {
+		factor = f
 	}
 
-	nt.position.x = t1.position.x + ((t2.position.x - t1.position.x) * factor)
-	nt.position.y = t1.position.y + ((t2.position.y - t1.position.y) * factor)
-	nt.rotation = t1.rotation + ((t2.rotation - t1.rotation) * factor)
-	nt.width = t1.width + ((t2.width - t1.width) * factor)
-	nt.height = t1.height + ((t2.height - t1.height) * factor)
+	if lerp_data.x_mode == .DampedOscillator && velocities != nil {
+		displacement := t2.position.x - t1.position.x
+		new_displacement := math_damped_oscillator(
+			&velocities.x,
+			displacement,
+			lerp_data.spring,
+			lerp_data.damp,
+			delta,
+		)
+		buffer_t.position.x = t2.position.x - new_displacement
+	} else {
+		buffer_t.position.x =
+			t1.position.x +
+			((t2.position.x - t1.position.x) * get_lerp_mode_factor(lerp_data.x_mode, factor))
+	}
 
+	if lerp_data.y_mode == .DampedOscillator && velocities != nil {
+		displacement := t2.position.y - t1.position.y
+		new_displacement := math_damped_oscillator(
+			&velocities.y,
+			displacement,
+			lerp_data.spring,
+			lerp_data.damp,
+			delta,
+		)
+		buffer_t.position.y = t2.position.y - new_displacement
+	} else {
+		buffer_t.position.y =
+			t1.position.y +
+			((t2.position.y - t1.position.y) * get_lerp_mode_factor(lerp_data.y_mode, factor))
+	}
 
-	return nt
+	if lerp_data.rotation_mode == .DampedOscillator && velocities != nil {
+		displacement := t2.rotation - t1.rotation
+		new_displacement := math_damped_oscillator(
+			&velocities.x,
+			displacement,
+			lerp_data.spring,
+			lerp_data.damp,
+			delta,
+		)
+		buffer_t.rotation = t2.rotation - new_displacement
+	} else {
+		buffer_t.rotation =
+			t1.rotation +
+			((t2.rotation - t1.rotation) * get_lerp_mode_factor(lerp_data.rotation_mode, factor))
+	}
+
+	if lerp_data.width_mode == .DampedOscillator && velocities != nil {
+		displacement := t2.width - t1.width
+		new_displacement := math_damped_oscillator(
+			&velocities.x,
+			displacement,
+			lerp_data.spring,
+			lerp_data.damp,
+			delta,
+		)
+		buffer_t.width = t2.width - new_displacement
+	} else {
+		buffer_t.width =
+			t1.width + ((t2.width - t1.width) * get_lerp_mode_factor(lerp_data.width_mode, factor))
+	}
+
+	if lerp_data.height_mode == .DampedOscillator && velocities != nil {
+		displacement := t2.height - t1.height
+		new_displacement := math_damped_oscillator(
+			&velocities.x,
+			displacement,
+			lerp_data.spring,
+			lerp_data.damp,
+			delta,
+		)
+		buffer_t.height = t2.height - new_displacement
+	} else {
+		buffer_t.height =
+			t1.height +
+			((t2.height - t1.height) * get_lerp_mode_factor(lerp_data.height_mode, factor))
+	}
 }
 
 RigStatus :: struct {

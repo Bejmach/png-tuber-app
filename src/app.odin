@@ -40,8 +40,11 @@ delete_rig_data :: proc(rd: ^AppRigData) {
 }
 
 AppSectionData :: struct {
-	transformers:           [2]Transformer,
+	cur_transformer:        Transformer,
+	cur_velocities:         TransformerVelocities,
+	rand_transformers:           [2]Transformer,
 	cur_volume_transformer: Transformer,
+	cur_volume_velocities:  TransformerVelocities,
 	tint:                   rl.Color,
 }
 
@@ -180,8 +183,8 @@ app_process_png_tuber :: proc(app: ^App, delta: f32) {
 
 		app_data_section := &app.rig_data.sections[section_name]
 
-		app_data_section.transformers[0] = app_data_section.transformers[1]
-		app_data_section.transformers[1] = colapse_rand_transformer(&next_frame.rand_transform)
+		app_data_section.rand_transformers[0] = app_data_section.rand_transformers[1]
+		app_data_section.rand_transformers[1] = colapse_rand_transformer(&next_frame.rand_transform)
 	}
 }
 
@@ -232,22 +235,19 @@ get_section_transform :: proc(
 
 	cur_frame_transform := add_transformers(
 		&cur_frame.transform,
-		&rig_data_section.transformers[0],
+		&rig_data_section.rand_transformers[0],
 	)
 
 	volume_tranform := solve_volume_transformers(&section.volume_transforms, db)
-	if !r.lerp_vt {
-		rig_data_section.cur_volume_transformer = volume_tranform
-	} else {
-		rig_data_section.cur_volume_transformer = lerp_transformers(
-			&rig_data_section.cur_volume_transformer,
-			&volume_tranform,
-			delta * r.vt_lerp_strength,
-			r.vt_lerp_mode,
-		)
-	}
-
-	cur_transform: Transformer
+	lerp_transformers(
+		&rig_data_section.cur_volume_transformer,
+		&volume_tranform,
+		&rig_data_section.cur_volume_transformer,
+		0.0,
+		section.final_vt_lerp_data,
+		delta,
+		&rig_data_section.cur_volume_velocities,
+	)
 
 	next_frame_id: int
 
@@ -262,7 +262,7 @@ get_section_transform :: proc(
 		)
 	case .Revert:
 		next_frame_id = (int(rs.cur_frame[section_name]) + rs.frame_direction[section_name])
-		if next_frame_id >= len(section.frames){
+		if next_frame_id >= len(section.frames) {
 			next_frame_id = (len(section.frames) - 1) * 2 - next_frame_id
 		} else if next_frame_id < 0 {
 			next_frame_id *= -1
@@ -274,17 +274,32 @@ get_section_transform :: proc(
 
 	next_frame_transform := add_transformers(
 		&next_frame.transform,
-		&rig_data_section.transformers[1],
+		&rig_data_section.rand_transformers[1],
 	)
 
-	cur_transform = lerp_transformers(
+	cur_transform: Transformer
+	/*lerp_transformers(
 		&cur_frame_transform,
 		&next_frame_transform,
+		&cur_transform,
 		frame_factor,
-		cur_frame_transform.lerp_mode,
+		cur_frame_transform.lerp_data,
+	)*/
+
+	lerp_transformers(
+		&rig_data_section.cur_transformer,
+		&next_frame_transform,
+		&rig_data_section.cur_transformer,
+		frame_factor,
+		section.final_lerp_data,
+		delta,
+		&rig_data_section.cur_velocities,
 	)
 
-	cur_transform = add_transformers(&cur_transform, &rig_data_section.cur_volume_transformer)
+	cur_transform = add_transformers(
+		&rig_data_section.cur_transformer,
+		&rig_data_section.cur_volume_transformer,
+	)
 
 	if len(section.connect_to_section) != 0 {
 		conn_section_ok := section.connect_to_section in r.sections
@@ -505,6 +520,8 @@ app_run :: proc() {
 	//app_command(app, .Load_Rig, "./data/example")
 	app_command(app, .Load_Rig, "./data/multi_section")
 	app_command(app, .Change_Scene, "Png_Tuber")
+
+	//fmt.printfln("%#v", app)
 
 	for app.running {
 		sync.mutex_lock(&command_mutex)
