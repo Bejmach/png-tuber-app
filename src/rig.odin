@@ -107,11 +107,11 @@ is_bind_released :: proc(b: ^Bind) -> bool {
 is_bind_just_pressed :: proc(b: ^Bind) -> bool {
 	any_just_pressed := false
 	for key in b.keys {
-		if !rl.IsKeyPressed(key) {
-			if !rl.IsKeyDown(key) {
+		if !rl.IsKeyDown(key) {
 				return false
 			}
-		} else {
+
+		if rl.IsKeyPressed(key) {
 			any_just_pressed = true
 		}
 	}
@@ -121,11 +121,11 @@ is_bind_just_pressed :: proc(b: ^Bind) -> bool {
 is_bind_just_released :: proc(b: ^Bind) -> bool {
 	any_just_released := false
 	for key in b.keys {
-		if !rl.IsKeyReleased(key) {
-			if rl.IsKeyDown(key) {
+		if rl.IsKeyDown(key) {
 				return false
 			}
-		} else {
+
+		if rl.IsKeyReleased(key) {
 			any_just_released = true
 		}
 	}

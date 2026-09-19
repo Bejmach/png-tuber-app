@@ -23,19 +23,18 @@ run_rig_command :: proc(r: ^Rig, rs: ^RigStatus, command: ^RigCommand) {
 	defer delete(parsed_params)
 
 	for param, id in command.params {
-		if param[0] == '$' {
-			param_name := param[1:]
-			value, ok := r.params[param_name]
-
-			if ok {
-				parsed_params[id] = value
-			} else {
-				fmt.eprintln("Param", param_name, "not found in rig params")
-				return
-			}
-		} else {
+		if param[0] != '$' {
 			parsed_params[id] = param
+			continue
 		}
+		param_name := param[1:]
+		value, ok := r.params[param_name]
+
+		if !ok {
+			fmt.eprintln("Param", param_name, "not found in rig params")
+			return
+		}	
+		parsed_params[id] = value
 	}
 
 	switch command.action {
@@ -56,14 +55,14 @@ run_rig_command :: proc(r: ^Rig, rs: ^RigStatus, command: ^RigCommand) {
 	}
 }
 
-comm_reset_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string){
-	for section_name in sections{
+comm_reset_section :: proc(r: ^Rig, rs: ^RigStatus, sections: []string) {
+	for section_name in sections {
 		section, ok := &r.sections[section_name]
-		if ok{
+		if ok {
 			rs.frame_time[section_name] = 0
-			if len(section.frames) > 0{
+			if len(section.frames) > 0 {
 				frame, ok := r.frames[section.frames[0]]
-				if ok{
+				if ok {
 					rs.frame_time[section_name] = frame.time
 				}
 			}
@@ -112,7 +111,7 @@ comm_set_param :: proc(r: ^Rig, params: []string) {
 	if len(params) > 0 && len(params) % 2 == 0 {
 		for i := 0; i < len(params); i += 2 {
 			key := strings.clone(params[i])
-			value := strings.clone(params[i+1])
+			value := strings.clone(params[i + 1])
 			r.params[key] = value
 		}
 	}

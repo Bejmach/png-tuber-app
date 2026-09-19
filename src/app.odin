@@ -278,17 +278,17 @@ get_section_transform :: proc(
 	)
 
 	cur_transform: Transformer
-	/*lerp_transformers(
+	lerp_transformers(
 		&cur_frame_transform,
 		&next_frame_transform,
 		&cur_transform,
 		frame_factor,
 		cur_frame_transform.lerp_data,
-	)*/
+	)
 
 	lerp_transformers(
 		&rig_data_section.cur_transformer,
-		&next_frame_transform,
+		&cur_transform,
 		&rig_data_section.cur_transformer,
 		frame_factor,
 		section.final_lerp_data,
@@ -304,15 +304,11 @@ get_section_transform :: proc(
 	if len(section.connect_to_section) != 0 {
 		conn_section_ok := section.connect_to_section in r.sections
 		if conn_section_ok {
-			connected_transform := get_section_transform(
-				r,
-				rs,
-				ard,
-				section.connect_to_section,
-				delta,
-			)
-			cur_transform.position += connected_transform.position
-			cur_transform.rotation += connected_transform.rotation
+			connected_section, ok := ard.sections[section.connect_to_section]
+			if ok{
+				cur_transform.position += connected_section.cur_transformer.position + connected_section.cur_volume_transformer.position
+				cur_transform.rotation += connected_section.cur_transformer.rotation + connected_section.cur_volume_transformer.rotation
+			}
 		}
 	}
 

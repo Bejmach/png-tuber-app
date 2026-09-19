@@ -57,11 +57,11 @@
       ],
       "window_anchor": "Center_Center",
       "rotation_anchor": "Center_Center",
-	  "final_lerp_data": {
-		  "y_mode": "DampedOscillator",
-		  "spring": 20,
-		  "damp": 3
-	  }
+      "final_lerp_data": {
+        "y_mode": "DampedOscillator",
+        "spring": 200,
+        "damp": 5
+      }
     },
     "ear_left": {
       "visible": true,
@@ -93,8 +93,8 @@
       ],
       "final_vt_lerp_data": {
         "rotation_mode": "DampedOscillator",
-		"spring": 40,
-		"damp": 5
+        "spring": 40,
+        "damp": 5
       }
     },
     "ear_right": {
@@ -127,8 +127,8 @@
       ],
       "final_vt_lerp_data": {
         "rotation_mode": "DampedOscillator",
-		"spring": 40,
-		"damp": 5
+        "spring": 40,
+        "damp": 5
       }
     }
   },

@@ -32,7 +32,7 @@ load_settings :: proc(path: string) -> (settings: ^Settings, ok: bool) {
 	}
 
 	if err != nil {
-		fmt.eprintln("Failed to read file")
+		fmt.eprintln("Failed to read file", err)
 		return nil, false
 	}
 
@@ -40,10 +40,10 @@ load_settings :: proc(path: string) -> (settings: ^Settings, ok: bool) {
 	unmarshal_err := json.unmarshal(data, settings)
 	if unmarshal_err == nil {
 		return settings, true
-	} else {
-		delete_settings(settings)
-		fmt.eprintln("Failed to unmarshal JSON", unmarshal_err)
 	}
+	
+	delete_settings(settings)
+	fmt.eprintln("Failed to unmarshal JSON", unmarshal_err)
 
 	return nil, false
 }
@@ -61,8 +61,9 @@ save_settings :: proc(path: string, s: ^Settings) -> bool {
 		return false
 	}
 
-	if os.write_entire_file(path, data) != nil {
-		fmt.eprintln("Failed to write file")
+	err_wf := os.write_entire_file(path, data)
+	if err_wf != nil {
+		fmt.eprintln("Failed to write file", err_wf)
 		return false
 	}
 
