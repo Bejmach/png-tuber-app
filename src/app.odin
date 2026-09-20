@@ -2,6 +2,7 @@ package png_tuber
 
 import "core:fmt"
 import "core:math"
+import la "core:math/linalg"
 import "core:net"
 import "core:os"
 import "core:reflect"
@@ -42,10 +43,11 @@ delete_rig_data :: proc(rd: ^AppRigData) {
 AppSectionData :: struct {
 	cur_transformer:        Transformer,
 	cur_velocities:         TransformerVelocities,
-	rand_transformers:           [2]Transformer,
+	rand_transformers:      [2]Transformer,
 	cur_volume_transformer: Transformer,
 	cur_volume_velocities:  TransformerVelocities,
 	tint:                   rl.Color,
+	total_velocities:       TransformerVelocities, // current velocity speed
 }
 
 App :: struct {
@@ -184,7 +186,9 @@ app_process_png_tuber :: proc(app: ^App, delta: f32) {
 		app_data_section := &app.rig_data.sections[section_name]
 
 		app_data_section.rand_transformers[0] = app_data_section.rand_transformers[1]
-		app_data_section.rand_transformers[1] = colapse_rand_transformer(&next_frame.rand_transform)
+		app_data_section.rand_transformers[1] = colapse_rand_transformer(
+			&next_frame.rand_transform,
+		)
 	}
 }
 
@@ -232,6 +236,11 @@ get_section_transform :: proc(
 	)
 
 	rig_data_section := &ard.sections[section_name]
+
+	prev_transform := add_transformers(
+		&rig_data_section.cur_transformer,
+		&rig_data_section.cur_volume_transformer,
+	)
 
 	cur_frame_transform := add_transformers(
 		&cur_frame.transform,
@@ -305,12 +314,38 @@ get_section_transform :: proc(
 		conn_section_ok := section.connect_to_section in r.sections
 		if conn_section_ok {
 			connected_section, ok := ard.sections[section.connect_to_section]
-			if ok{
-				cur_transform.position += connected_section.cur_transformer.position + connected_section.cur_volume_transformer.position
-				cur_transform.rotation += connected_section.cur_transformer.rotation + connected_section.cur_volume_transformer.rotation
+			if ok {
+				cur_transform.position +=
+					connected_section.cur_transformer.position +
+					connected_section.cur_volume_transformer.position
+				cur_transform.rotation +=
+					connected_section.cur_transformer.rotation +
+					connected_section.cur_volume_transformer.rotation
 			}
 		}
 	}
+
+	cur_total_velocity := div_transformer(
+		subtract_transformers(&cur_transform, &prev_transform),
+		delta,
+	)
+	rig_data_section.total_velocities = TransformerVelocities {
+		cur_total_velocity.position.x,
+		cur_total_velocity.position.y,
+		cur_total_velocity.width,
+		cur_total_velocity.height,
+		cur_total_velocity.rotation,
+	}
+
+	width_jiggle :=
+		r.sections[section_name].x_softness *
+		rig_data_section.total_velocities.x
+	height_jiggle :=
+		r.sections[section_name].y_softness *
+		rig_data_section.total_velocities.y
+
+	cur_transform.width -= width_jiggle
+	cur_transform.height -= height_jiggle
 
 	return cur_transform
 }

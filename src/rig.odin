@@ -108,8 +108,8 @@ is_bind_just_pressed :: proc(b: ^Bind) -> bool {
 	any_just_pressed := false
 	for key in b.keys {
 		if !rl.IsKeyDown(key) {
-				return false
-			}
+			return false
+		}
 
 		if rl.IsKeyPressed(key) {
 			any_just_pressed = true
@@ -122,8 +122,8 @@ is_bind_just_released :: proc(b: ^Bind) -> bool {
 	any_just_released := false
 	for key in b.keys {
 		if rl.IsKeyDown(key) {
-				return false
-			}
+			return false
+		}
 
 		if rl.IsKeyReleased(key) {
 			any_just_released = true
@@ -149,6 +149,8 @@ AnimationSection :: struct {
 	rotation_anchor:        Anchor,
 	rotation_anchor_offset: la.Vector2f32,
 	volume_transforms:      []VolumeTransformer, // supposed to go from quietest to loudest
+	x_softness:             f32,
+	y_softness:             f32,
 	connect_to_section:     string,
 	final_lerp_data:        LerpData,
 	final_vt_lerp_data:     LerpData,
@@ -275,6 +277,45 @@ add_transformers :: proc(t1: ^Transformer, t2: ^Transformer) -> Transformer {
 	nt.width = t1.width + t2.width
 	nt.height = t1.height + t2.height
 	nt.rotation = t1.rotation + t2.rotation
+
+	return nt
+}
+
+subtract_transformers :: proc(t1: ^Transformer, t2: ^Transformer) -> Transformer {
+	nt: Transformer
+
+	nt.lerp_data = t1.lerp_data
+	nt.position.x = t1.position.x - t2.position.x
+	nt.position.y = t1.position.y - t2.position.y
+	nt.width = t1.width - t2.width
+	nt.height = t1.height - t2.height
+	nt.rotation = t1.rotation - t2.rotation
+
+	return nt
+}
+
+mult_transformer :: proc(t: Transformer, v: f32) -> Transformer {
+	nt: Transformer
+
+	nt.lerp_data = t.lerp_data
+	nt.position.x = t.position.x * v
+	nt.position.y = t.position.y * v
+	nt.width = t.width * v
+	nt.height = t.height * v
+	nt.rotation = t.rotation * v
+
+	return nt
+}
+
+div_transformer :: proc(t: Transformer, v: f32) -> Transformer {
+	nt: Transformer
+
+	nt.lerp_data = t.lerp_data
+	nt.position.x = t.position.x / v
+	nt.position.y = t.position.y / v
+	nt.width = t.width / v
+	nt.height = t.height / v
+	nt.rotation = t.rotation / v
 
 	return nt
 }

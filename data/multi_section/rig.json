@@ -61,7 +61,8 @@
         "y_mode": "DampedOscillator",
         "spring": 200,
         "damp": 5
-      }
+      },
+	  "y_softness": 0.2
     },
     "ear_left": {
       "visible": true,
@@ -95,7 +96,8 @@
         "rotation_mode": "DampedOscillator",
         "spring": 40,
         "damp": 5
-      }
+      },
+	  "y_softness": -0.02
     },
     "ear_right": {
       "visible": true,
