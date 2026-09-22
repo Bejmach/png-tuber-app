@@ -89,18 +89,24 @@ delete_app :: proc(app: ^App) {
 
 AppCommand :: enum {
 	Load_Rig,
+	Save_Rig,
 	Change_Scene,
 	Rig_Command,
+	Edit_Select_Section,
 }
 
 app_command :: proc(app: ^App, command: AppCommand, payload: string) {
 	switch command {
 	case .Load_Rig:
 		app_load_rig(app, payload)
+	case .Save_Rig:
+		app_save_rig(app, payload)
 	case .Change_Scene:
 		app_change_scene(app, payload)
 	case .Rig_Command:
 		app_rig_command(app, payload)
+	case .Edit_Select_Section:
+		app_edit_select_section(app, payload)
 	}
 }
 
@@ -126,6 +132,13 @@ app_load_rig :: proc(app: ^App, path: string) {
 		rl.SetWindowSize(math.max(i32(rig_rect.width), 100), math.max(i32(rig_rect.height), 100))
 	}
 }
+
+app_save_rig :: proc(app: ^App, path: string) {
+	if app.loaded_rig != nil {
+		save_rig(app.loaded_rig, path)
+	}
+}
+
 app_change_scene :: proc(app: ^App, scene: string) {
 	scene_enum, ok := reflect.enum_from_name(AppScene, scene)
 
@@ -143,6 +156,13 @@ app_change_scene :: proc(app: ^App, scene: string) {
 				math.max(i32(rig_rect.height), 100),
 			)
 		}
+	}
+}
+
+app_edit_select_section :: proc(app: ^App, section: string) {
+	ok := section in app.loaded_rig.sections
+	if ok {
+		app.editor_data.selected_section = section
 	}
 }
 
@@ -197,13 +217,13 @@ app_process_png_tuber :: proc(app: ^App, delta: f32) {
 	}
 }
 
-app_process_editor :: proc(app: ^App, delta: f32){
-	if rl.IsMouseButtonDown(.LEFT){
+app_process_editor :: proc(app: ^App, delta: f32) {
+	if rl.IsMouseButtonDown(.LEFT) {
 		app.editor_data.mouse_transform += rl.GetMouseDelta()
 	} else if rl.IsMouseButtonReleased(.LEFT) {
 		section, ok := &app.loaded_rig.sections[app.editor_data.selected_section]
 		cur_frame := &app.loaded_rig.frames[section.frames[app.editor_data.cur_frame]]
-		cur_frame.transform.position += app.editor_data.mouse_transform 
+		cur_frame.transform.position += app.editor_data.mouse_transform
 		app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
 		app_data_section.cur_transformer.position += app.editor_data.mouse_transform
 		app.editor_data.mouse_transform = {0.0, 0.0}
@@ -427,7 +447,8 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
 
 			frame_position := cur_transform.position + app.loaded_rig.position_offset
-			if section_name == app.editor_data.selected_section || section.connect_to_section == app.editor_data.selected_section {
+			if section_name == app.editor_data.selected_section ||
+			   section.connect_to_section == app.editor_data.selected_section {
 				frame_position += app.editor_data.mouse_transform
 			}
 
@@ -521,12 +542,43 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			selected_section.window_anchor_offset
 		draw_edit_rect(
 			rl.Rectangle {
-				cur_frame.transform.position.x + position_anchor.x + app.editor_data.mouse_transform.x,
-				cur_frame.transform.position.y + position_anchor.y + app.editor_data.mouse_transform.y,
+				cur_frame.transform.position.x +
+				position_anchor.x +
+				app.editor_data.mouse_transform.x,
+				cur_frame.transform.position.y +
+				position_anchor.y +
+				app.editor_data.mouse_transform.y,
 				cur_frame.transform.width,
 				cur_frame.transform.height,
 			},
 		)
+
+		transform_anchor_position :=
+			position_anchor +
+			math_anchor_position(
+				cur_frame.transform.width,
+				cur_frame.transform.height,
+				selected_section.transform_anchor,
+			) +
+			cur_frame.transform.position +
+			app.editor_data.mouse_transform
+
+		
+		rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
+		rl.DrawLineEx(
+			transform_anchor_position.xy - {10, 10},
+			transform_anchor_position.xy + {10, 10},
+			1.0,
+			rl.BLUE,
+		)
+		rl.DrawLineEx(
+			transform_anchor_position.xy - {10, -10},
+			transform_anchor_position.xy + {10, -10},
+			1.0,
+			rl.BLUE,
+		)
+
+
 	}
 }
 
@@ -783,9 +835,7 @@ app_run :: proc() {
 	//app_command(app, .Load_Rig, "./data/example")
 	app_command(app, .Load_Rig, "./data/multi_section")
 	app_command(app, .Change_Scene, "Editor")
-	app.editor_data.selected_section = "face"
-
-	fmt.println(app.scene)
+	app_command(app, .Edit_Select_Section, "face")
 
 	//fmt.printfln("%#v", app.loaded_rig)
 

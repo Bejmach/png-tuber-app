@@ -2,6 +2,7 @@
 
 package png_tuber
 
+import "base:runtime"
 import "core:encoding/json"
 import "core:fmt"
 import "core:math"
@@ -65,7 +66,7 @@ Rig :: struct {
 	rotation_offset:    la.Vector2f32,
 	preserve_talk_time: f32,
 	volume_threshhold:  f32,
-	rig_path:           string,
+	rig_path:          string,
 }
 
 BindAction :: enum {
@@ -139,22 +140,22 @@ LoopMode :: enum {
 }
 
 AnimationSection :: struct {
-	visible:                bool,
-	loop_mode:              LoopMode,
-	reset_on_enter:         bool,
-	z_index:                int,
-	frames:                 []string,
-	window_anchor:          Anchor,
-	window_anchor_offset:   la.Vector2f32,
+	visible:                 bool,
+	loop_mode:               LoopMode,
+	reset_on_enter:          bool,
+	z_index:                 int,
+	frames:                  []string,
+	window_anchor:           Anchor,
+	window_anchor_offset:    la.Vector2f32,
 	transform_anchor:        Anchor,
 	transform_anchor_offset: la.Vector2f32,
-	volume_transforms:      []VolumeTransformer, // supposed to go from quietest to loudest
-	x_softness:             f32,
-	y_softness:             f32,
-	connect_to_section:     string,
-	final_lerp_data:        LerpData,
-	final_vt_lerp_data:     LerpData,
-	on_section_end:         []RigCommand,
+	volume_transforms:       []VolumeTransformer, // supposed to go from quietest to loudest
+	x_softness:              f32,
+	y_softness:              f32,
+	connect_to_section:      string,
+	final_lerp_data:         LerpData,
+	final_vt_lerp_data:      LerpData,
+	on_section_end:          []RigCommand,
 }
 
 delete_animation_section :: proc(as: ^AnimationSection) {
@@ -504,6 +505,34 @@ load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
 	}
 
 	return nil, false
+}
+
+save_rig :: proc(r: ^Rig, directory_path: string) {
+	path: string
+	path_err: runtime.Allocator_Error
+	path, path_err = filepath.join({directory_path, "rig.json"})
+	defer {
+		if path_err == nil {
+			delete(path)
+		}
+	}
+	if path_err != nil {
+		fmt.println("Failed to merge path:", path_err)
+		return
+	}
+
+	data, data_err := json.marshal(r^, {pretty = true, use_enum_names = true})
+
+	if data_err != nil {
+		fmt.eprintln("Unable to marshal json:", data_err)
+		return
+	}
+
+	write_err := os.write_entire_file(path, data)
+	if write_err != nil {
+		fmt.eprintln("Unable to write file:", write_err)
+		return
+	}
 }
 
 delete_rig :: proc(rig: ^Rig) {
