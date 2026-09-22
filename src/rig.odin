@@ -146,8 +146,8 @@ AnimationSection :: struct {
 	frames:                 []string,
 	window_anchor:          Anchor,
 	window_anchor_offset:   la.Vector2f32,
-	rotation_anchor:        Anchor,
-	rotation_anchor_offset: la.Vector2f32,
+	transform_anchor:        Anchor,
+	transform_anchor_offset: la.Vector2f32,
 	volume_transforms:      []VolumeTransformer, // supposed to go from quietest to loudest
 	x_softness:             f32,
 	y_softness:             f32,

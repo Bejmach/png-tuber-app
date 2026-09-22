@@ -26,6 +26,7 @@ ipc_commands: [dynamic]IpcCommand
 AppScene :: enum {
 	Menu,
 	Png_Tuber,
+	Editor,
 }
 
 AppRigData :: struct {
@@ -51,15 +52,16 @@ AppSectionData :: struct {
 }
 
 App :: struct {
-	scene:      AppScene,
-	settings:   ^Settings,
-	muted:      bool,
-	running:    bool,
-	rig_data:   AppRigData,
-	rig_status: RigStatus,
-	frame_lib:  TextureLib,
-	loaded_rig: ^Rig,
-	time_speed: f32,
+	scene:       AppScene,
+	settings:    ^Settings,
+	muted:       bool,
+	running:     bool,
+	rig_data:    AppRigData,
+	rig_status:  RigStatus,
+	frame_lib:   TextureLib,
+	loaded_rig:  ^Rig,
+	time_speed:  f32,
+	editor_data: EditorData,
 }
 
 new_app :: proc() -> ^App {
@@ -118,7 +120,8 @@ app_load_rig :: proc(app: ^App, path: string) {
 	for section_name, _ in app.loaded_rig.sections {
 		app.rig_data.sections[section_name] = AppSectionData{}
 	}
-	if app.scene == .Png_Tuber {
+	#partial switch app.scene {
+	case .Png_Tuber, .Editor:
 		rig_rect := get_rig_rect(app.loaded_rig)
 		rl.SetWindowSize(math.max(i32(rig_rect.width), 100), math.max(i32(rig_rect.height), 100))
 	}
@@ -156,6 +159,8 @@ app_process :: proc(app: ^App, delta: f32) {
 	case .Menu:
 	case .Png_Tuber:
 		app_process_png_tuber(app, delta)
+	case .Editor:
+		app_process_editor(app, delta)
 	}
 }
 
@@ -192,17 +197,337 @@ app_process_png_tuber :: proc(app: ^App, delta: f32) {
 	}
 }
 
+app_process_editor :: proc(app: ^App, delta: f32){
+	if rl.IsMouseButtonDown(.LEFT){
+		app.editor_data.mouse_transform += rl.GetMouseDelta()
+	} else if rl.IsMouseButtonReleased(.LEFT) {
+		section, ok := &app.loaded_rig.sections[app.editor_data.selected_section]
+		cur_frame := &app.loaded_rig.frames[section.frames[app.editor_data.cur_frame]]
+		cur_frame.transform.position += app.editor_data.mouse_transform 
+		app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
+		app_data_section.cur_transformer.position += app.editor_data.mouse_transform
+		app.editor_data.mouse_transform = {0.0, 0.0}
+	}
+}
+
 app_draw :: proc(app: ^App, delta: f32) {
 	switch app.scene {
 	case .Menu:
 		draw_menu(app)
 	case .Png_Tuber:
 		draw_png_tuber(app, delta)
+	case .Editor:
+		draw_editor(app, delta)
 	}
 }
 
 draw_menu :: proc(app: ^App) {
 
+}
+
+draw_png_tuber :: proc(app: ^App, delta: f32) {
+	for zi in app.rig_status.z_layers {
+		for section_name, &section in app.loaded_rig.sections {
+			// skip overlays
+			if section.z_index != zi || !section.visible {
+				continue
+			}
+
+			cur_frame, frame_ok := get_frame(
+				app.loaded_rig,
+				section_name,
+				app.rig_status.cur_frame[section_name],
+			)
+
+			if !frame_ok {
+				continue
+			}
+
+			cur_transform := get_section_transform(
+				app.loaded_rig,
+				&app.rig_status,
+				app.rig_data,
+				section_name,
+				delta,
+			)
+
+			width_jiggle :=
+				(app.rig_data.sections[section_name].total_velocities.x -
+					app.rig_data.sections[section_name].total_velocities.y)
+			height_jiggle :=
+				(app.rig_data.sections[section_name].total_velocities.y -
+					app.rig_data.sections[section_name].total_velocities.x)
+
+			position_anchor :=
+				math_anchor_position(
+					f32(rl.GetScreenWidth()),
+					f32(rl.GetScreenHeight()),
+					app.loaded_rig.sections[section_name].window_anchor,
+				) -
+				math_anchor_position(
+					cur_transform.width,
+					cur_transform.height,
+					app.loaded_rig.sections[section_name].window_anchor,
+				) +
+				{cur_transform.width / 2.0, cur_transform.height / 2.0} +
+				app.loaded_rig.sections[section_name].window_anchor_offset
+			transform_anchor :=
+				math_anchor_position(
+					cur_transform.width,
+					cur_transform.height,
+					app.loaded_rig.sections[section_name].transform_anchor,
+				) +
+				app.loaded_rig.sections[section_name].transform_anchor_offset
+
+			//fmt.println(transform_anchor)
+
+			frame_tint: rl.Color
+			if cur_frame.overwrite_tint {
+				frame_tint = cur_frame.tint
+			} else {
+				frame_tint = rl.WHITE
+			}
+
+			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
+
+			frame_position := cur_transform.position + app.loaded_rig.position_offset
+
+			min_x: f32 = 0
+			min_y: f32 = 0
+			max_x := min_x + cur_transform.width
+			max_y := min_y + cur_transform.height
+
+			min_x_anchor_distance := math.abs(min_x - transform_anchor.x)
+			max_x_anchor_distance := math.abs(max_x - transform_anchor.x)
+			min_y_anchor_distance := math.abs(min_y - transform_anchor.y)
+			max_y_anchor_distance := math.abs(max_y - transform_anchor.y)
+
+			min_x_jiggle_scale :=
+				(min_x_anchor_distance / cur_transform.width) * section.x_softness
+			max_x_jiggle_scale :=
+				(max_x_anchor_distance / cur_transform.width) * section.x_softness
+			min_y_jiggle_scale :=
+				(min_y_anchor_distance / cur_transform.height) * section.y_softness
+			max_y_jiggle_scale :=
+				(max_y_anchor_distance / cur_transform.height) * section.y_softness
+
+
+			//fmt.println(min_x, max_x, min_y, max_y)
+
+			/*fmt.println(
+				min_x_anchor_distance,
+				max_x_anchor_distance,
+				min_y_anchor_distance,
+				max_y_anchor_distance,
+			)*/
+
+			/*fmt.println(
+				min_x_jiggle_scale,
+				max_x_jiggle_scale,
+				min_y_jiggle_scale,
+				max_y_jiggle_scale,
+			)*/
+
+			min_x = min_x + width_jiggle * min_x_jiggle_scale
+			max_x = max_x - width_jiggle * max_x_jiggle_scale
+			min_y = min_y + height_jiggle * min_y_jiggle_scale
+			max_y = max_y - height_jiggle * max_y_jiggle_scale
+
+			//fmt.println(min_x, max_x, min_y, max_y)
+
+			min_x += frame_position.x + position_anchor.x - cur_transform.width / 2.0
+			max_x += frame_position.x + position_anchor.x - cur_transform.width / 2.0
+			min_y += frame_position.y + position_anchor.y - cur_transform.height / 2.0
+			max_y += frame_position.y + position_anchor.y - cur_transform.height / 2.0
+
+			//fmt.println(min_x, max_x, min_y, max_y)
+
+			if texture_ok {
+				rl.DrawTexturePro(
+					texture,
+					{0, 0, f32(texture.width), f32(texture.height)},
+					{
+						min_x + transform_anchor.x,
+						min_y + transform_anchor.y,
+						max_x - min_x,
+						max_y - min_y,
+					},
+					transform_anchor,
+					cur_transform.rotation,
+					frame_tint,
+				)
+			}
+		}
+	}
+}
+
+draw_editor :: proc(app: ^App, delta: f32) {
+	for zi in app.rig_status.z_layers {
+		for section_name, &section in app.loaded_rig.sections {
+			// skip overlays
+			if section.z_index != zi || !section.visible {
+				continue
+			}
+
+			cur_frame, frame_ok := get_frame(
+				app.loaded_rig,
+				section_name,
+				app.rig_status.cur_frame[section_name],
+			)
+
+			if !frame_ok {
+				continue
+			}
+
+			cur_transform := get_section_transform(
+				app.loaded_rig,
+				&app.rig_status,
+				app.rig_data,
+				section_name,
+				delta,
+			)
+
+			width_jiggle :=
+				(app.rig_data.sections[section_name].total_velocities.x -
+					app.rig_data.sections[section_name].total_velocities.y)
+			height_jiggle :=
+				(app.rig_data.sections[section_name].total_velocities.y -
+					app.rig_data.sections[section_name].total_velocities.x)
+
+			position_anchor :=
+				math_anchor_position(
+					f32(rl.GetScreenWidth()),
+					f32(rl.GetScreenHeight()),
+					app.loaded_rig.sections[section_name].window_anchor,
+				) -
+				math_anchor_position(
+					cur_transform.width,
+					cur_transform.height,
+					app.loaded_rig.sections[section_name].window_anchor,
+				) +
+				{cur_transform.width / 2.0, cur_transform.height / 2.0} +
+				app.loaded_rig.sections[section_name].window_anchor_offset
+			transform_anchor :=
+				math_anchor_position(
+					cur_transform.width,
+					cur_transform.height,
+					app.loaded_rig.sections[section_name].transform_anchor,
+				) +
+				app.loaded_rig.sections[section_name].transform_anchor_offset
+
+			//fmt.println(transform_anchor)
+
+			frame_tint: rl.Color
+			if cur_frame.overwrite_tint {
+				frame_tint = cur_frame.tint
+			} else {
+				frame_tint = rl.WHITE
+			}
+
+			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
+
+			frame_position := cur_transform.position + app.loaded_rig.position_offset
+			if section_name == app.editor_data.selected_section || section.connect_to_section == app.editor_data.selected_section {
+				frame_position += app.editor_data.mouse_transform
+			}
+
+			min_x: f32 = 0
+			min_y: f32 = 0
+			max_x := min_x + cur_transform.width
+			max_y := min_y + cur_transform.height
+
+			min_x_anchor_distance := math.abs(min_x - transform_anchor.x)
+			max_x_anchor_distance := math.abs(max_x - transform_anchor.x)
+			min_y_anchor_distance := math.abs(min_y - transform_anchor.y)
+			max_y_anchor_distance := math.abs(max_y - transform_anchor.y)
+
+			min_x_jiggle_scale :=
+				(min_x_anchor_distance / cur_transform.width) * section.x_softness
+			max_x_jiggle_scale :=
+				(max_x_anchor_distance / cur_transform.width) * section.x_softness
+			min_y_jiggle_scale :=
+				(min_y_anchor_distance / cur_transform.height) * section.y_softness
+			max_y_jiggle_scale :=
+				(max_y_anchor_distance / cur_transform.height) * section.y_softness
+
+
+			//fmt.println(min_x, max_x, min_y, max_y)
+
+			/*fmt.println(
+				min_x_anchor_distance,
+				max_x_anchor_distance,
+				min_y_anchor_distance,
+				max_y_anchor_distance,
+			)*/
+
+			/*fmt.println(
+				min_x_jiggle_scale,
+				max_x_jiggle_scale,
+				min_y_jiggle_scale,
+				max_y_jiggle_scale,
+			)*/
+
+			min_x = min_x + width_jiggle * min_x_jiggle_scale
+			max_x = max_x - width_jiggle * max_x_jiggle_scale
+			min_y = min_y + height_jiggle * min_y_jiggle_scale
+			max_y = max_y - height_jiggle * max_y_jiggle_scale
+
+			//fmt.println(min_x, max_x, min_y, max_y)
+
+			min_x += frame_position.x + position_anchor.x - cur_transform.width / 2.0
+			max_x += frame_position.x + position_anchor.x - cur_transform.width / 2.0
+			min_y += frame_position.y + position_anchor.y - cur_transform.height / 2.0
+			max_y += frame_position.y + position_anchor.y - cur_transform.height / 2.0
+
+			//fmt.println(min_x, max_x, min_y, max_y)
+
+			if texture_ok {
+				rl.DrawTexturePro(
+					texture,
+					{0, 0, f32(texture.width), f32(texture.height)},
+					{
+						min_x + transform_anchor.x,
+						min_y + transform_anchor.y,
+						max_x - min_x,
+						max_y - min_y,
+					},
+					transform_anchor,
+					cur_transform.rotation,
+					frame_tint,
+				)
+			}
+		}
+	}
+
+	selected_section, ok := app.loaded_rig.sections[app.editor_data.selected_section]
+	if ok {
+		if len(app.loaded_rig.frames) < 0 {
+			return
+		}
+		cur_frame_id := 0
+
+		cur_frame := app.loaded_rig.frames[selected_section.frames[cur_frame_id]]
+		position_anchor :=
+			math_anchor_position(
+				f32(rl.GetScreenWidth()),
+				f32(rl.GetScreenHeight()),
+				selected_section.window_anchor,
+			) -
+			math_anchor_position(
+				cur_frame.transform.width,
+				cur_frame.transform.height,
+				selected_section.transform_anchor,
+			) +
+			selected_section.window_anchor_offset
+		draw_edit_rect(
+			rl.Rectangle {
+				cur_frame.transform.position.x + position_anchor.x + app.editor_data.mouse_transform.x,
+				cur_frame.transform.position.y + position_anchor.y + app.editor_data.mouse_transform.y,
+				cur_frame.transform.width,
+				cur_frame.transform.height,
+			},
+		)
+	}
 }
 
 get_section_transform :: proc(
@@ -337,100 +662,7 @@ get_section_transform :: proc(
 		cur_total_velocity.rotation,
 	}
 
-	width_jiggle :=
-		r.sections[section_name].x_softness *
-		rig_data_section.total_velocities.x
-	height_jiggle :=
-		r.sections[section_name].y_softness *
-		rig_data_section.total_velocities.y
-
-	cur_transform.width -= width_jiggle
-	cur_transform.height -= height_jiggle
-
 	return cur_transform
-}
-
-draw_png_tuber :: proc(app: ^App, delta: f32) {
-	for zi in app.rig_status.z_layers {
-		for section_name, &section in app.loaded_rig.sections {
-			// skip overlays
-			if section.z_index != zi || !section.visible {
-				continue
-			}
-
-			cur_frame, frame_ok := get_frame(
-				app.loaded_rig,
-				section_name,
-				app.rig_status.cur_frame[section_name],
-			)
-
-			if !frame_ok {
-				continue
-			}
-
-			cur_transform := get_section_transform(
-				app.loaded_rig,
-				&app.rig_status,
-				app.rig_data,
-				section_name,
-				delta,
-			)
-
-			position_anchor :=
-				math_anchor_position(
-					f32(rl.GetScreenWidth()),
-					f32(rl.GetScreenHeight()),
-					app.loaded_rig.sections[section_name].window_anchor,
-				) -
-				math_anchor_position(
-					cur_transform.width,
-					cur_transform.height,
-					app.loaded_rig.sections[section_name].window_anchor,
-				) +
-				{cur_transform.width / 2.0, cur_transform.height / 2.0} +
-				app.loaded_rig.sections[section_name].window_anchor_offset
-			rotation_anchor :=
-				math_anchor_position(
-					cur_transform.width,
-					cur_transform.height,
-					app.loaded_rig.sections[section_name].rotation_anchor,
-				) +
-				app.loaded_rig.sections[section_name].rotation_anchor_offset
-
-			frame_tint: rl.Color
-			if cur_frame.overwrite_tint {
-				frame_tint = cur_frame.tint
-			} else {
-				frame_tint = rl.WHITE
-			}
-
-			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
-
-			frame_position := cur_transform.position + app.loaded_rig.position_offset
-
-			if texture_ok {
-				rl.DrawTexturePro(
-					texture,
-					{0, 0, f32(texture.width), f32(texture.height)},
-					{
-						frame_position.x +
-						position_anchor.x +
-						rotation_anchor.x -
-						cur_transform.width / 2.0,
-						frame_position.y +
-						position_anchor.y +
-						rotation_anchor.y -
-						cur_transform.height / 2.0,
-						cur_transform.width,
-						cur_transform.height,
-					},
-					rotation_anchor,
-					cur_transform.rotation,
-					frame_tint,
-				)
-			}
-		}
-	}
 }
 
 WorkerData :: struct {
@@ -550,9 +782,12 @@ app_run :: proc() {
 
 	//app_command(app, .Load_Rig, "./data/example")
 	app_command(app, .Load_Rig, "./data/multi_section")
-	app_command(app, .Change_Scene, "Png_Tuber")
+	app_command(app, .Change_Scene, "Editor")
+	app.editor_data.selected_section = "face"
 
-	//fmt.printfln("%#v", app)
+	fmt.println(app.scene)
+
+	//fmt.printfln("%#v", app.loaded_rig)
 
 	for app.running {
 		sync.mutex_lock(&command_mutex)

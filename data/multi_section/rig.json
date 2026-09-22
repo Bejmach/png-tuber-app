@@ -51,18 +51,38 @@
       "loop_mode": "None",
       "z_index": 0,
       "frames": [
-        "face_1",
-        "face_2",
         "face_1"
       ],
       "window_anchor": "Center_Center",
-      "rotation_anchor": "Center_Center",
+      "transform_anchor": "Center_Center",
+      "volume_transforms": [
+        {
+          "lerp_data": {
+            "y_mode": "Linear"
+          },
+          "volume": -50
+        },
+        {
+          "lerp_data": {
+            "y_mode": "Linear"
+          },
+          "volume": -10,
+          "y": -60
+        }
+      ],
       "final_lerp_data": {
         "y_mode": "DampedOscillator",
         "spring": 200,
         "damp": 5
       },
-	  "y_softness": 0.2
+      "final_vt_lerp_data": {
+        "y_mode": "DampedOscillator",
+        "x_mode": "DampedOscillator",
+        "spring": 100,
+        "damp": 5
+      },
+      "y_softness": 0.05,
+      "x_softness": 0.1
     },
     "ear_left": {
       "visible": true,
@@ -71,9 +91,9 @@
         "ear_left_1"
       ],
       "window_anchor": "Center_Center",
-      "rotation_anchor": "Center_Center",
+      "transform_anchor": "Center_Center",
       "connect_to_section": "face",
-      "rotation_anchor_offset": [
+      "transform_anchor_offset": [
         -20,
         -40
       ],
@@ -96,8 +116,7 @@
         "rotation_mode": "DampedOscillator",
         "spring": 40,
         "damp": 5
-      },
-	  "y_softness": -0.02
+      }
     },
     "ear_right": {
       "visible": true,
@@ -106,9 +125,9 @@
         "ear_right_1"
       ],
       "window_anchor": "Center_Center",
-      "rotation_anchor": "Center_Center",
+      "transform_anchor": "Center_Center",
       "connect_to_section": "face",
-      "rotation_anchor_offset": [
+      "transform_anchor_offset": [
         40,
         -40
       ],
@@ -154,6 +173,9 @@
       "commands": [
         {
           "action": "Toggle_Section",
+          "logic": {
+            "state": "True"
+          },
           "params": [
             "ear_left",
             "ear_right"

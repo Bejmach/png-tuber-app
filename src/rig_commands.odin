@@ -1,5 +1,6 @@
 package png_tuber
 
+import "core:strconv"
 import "core:fmt"
 import "core:reflect"
 import "core:strings"
@@ -15,7 +16,99 @@ RigAction :: enum {
 
 RigCommand :: struct {
 	action: RigAction,
+	logic:  RigLogic,
 	params: []string,
+}
+
+// No volume equal, because that's nearly impossible to have precise volume
+RigLogicState :: enum {
+	True,
+	False,
+	Volume_Over,
+	Volume_Over_Equal,
+	Volume_Under,
+	Volume_Under_Equal,
+	Section_Active,
+	Section_Inactive,
+}
+
+RigLogic :: struct {
+	state:  RigLogicState,
+	params: []string,
+}
+
+get_logic_value :: proc(r: ^Rig, rs: ^RigStatus, logic: ^RigLogic) -> bool{
+	switch logic.state{
+	case .True:
+		return true
+	case .False:
+		return false
+	case .Volume_Over:
+		if len(logic.params) == 1{
+			value, ok := strconv.parse_f32(logic.params[0])
+			if ok{
+				db := get_db()
+				if db > value{
+					return true
+				}
+			}
+		}
+	case .Volume_Over_Equal:
+		if len(logic.params) == 1{
+			value, ok := strconv.parse_f32(logic.params[0])
+			if ok{
+				db := get_db()
+				if db >= value{
+					return true
+				}
+			}
+		}
+	case .Volume_Under:
+		if len(logic.params) == 1{
+			value, ok := strconv.parse_f32(logic.params[0])
+			if ok{
+				db := get_db()
+				if db < value{
+					return true
+				}
+			}
+		}
+	case .Volume_Under_Equal:
+		if len(logic.params) == 1{
+			value, ok := strconv.parse_f32(logic.params[0])
+			if ok{
+				db := get_db()
+				if db <= value{
+					return true
+				}
+			}
+		}
+	case .Section_Active:
+		for section_name in logic.params{
+			section, ok := r.sections[section_name]
+
+			if ok{
+				if section.visible{
+					continue
+				}
+			}
+			return false
+		}
+		return true
+	case .Section_Inactive:
+		for section_name in logic.params{
+			section, ok := r.sections[section_name]
+
+			if ok{
+				if !section.visible{
+					continue
+				}
+			}
+			return false
+		}
+		return true
+	}
+	return false
 }
 
 run_rig_command :: proc(r: ^Rig, rs: ^RigStatus, command: ^RigCommand) {
@@ -33,8 +126,12 @@ run_rig_command :: proc(r: ^Rig, rs: ^RigStatus, command: ^RigCommand) {
 		if !ok {
 			fmt.eprintln("Param", param_name, "not found in rig params")
 			return
-		}	
+		}
 		parsed_params[id] = value
+	}
+
+	if !get_logic_value(r, rs, &command.logic){
+		return
 	}
 
 	switch command.action {
@@ -156,7 +253,7 @@ parse_command :: proc(command: string) -> []RigCommand {
 				continue
 			}
 
-			parsed_command := RigCommand{action, {}}
+			parsed_command := RigCommand{action, {}, {}}
 			append(&parsed_commands, parsed_command)
 			continue
 		}
@@ -179,7 +276,7 @@ parse_command :: proc(command: string) -> []RigCommand {
 			params[i] = strings.clone(params[i])
 		}
 
-		parsed_command := RigCommand{action, params}
+		parsed_command := RigCommand{action, {}, params}
 		append(&parsed_commands, parsed_command)
 	}
 
@@ -192,6 +289,11 @@ delete_rig_commands :: proc(rc_s: ^[]RigCommand) {
 			delete(param)
 		}
 		delete(command.params)
+
+		for param in command.logic.params{
+			delete(param)
+		}
+		delete(command.logic.params)
 	}
 
 	delete(rc_s^)

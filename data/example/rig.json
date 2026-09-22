@@ -247,7 +247,7 @@
         "idle_a_1"
       ],
       "window_anchor": "Center_Center",
-      "rotation_anchor": "Center_Center"
+      "transform_anchor": "Center_Center"
     },
     "talk": {
       "visible": false,
@@ -259,7 +259,7 @@
         "talk_a_4"
       ],
       "window_anchor": "Center_Center",
-      "rotation_anchor": "Center_Center"
+      "transform_anchor": "Center_Center"
     },
     "action": {
       "visible": false,
@@ -276,7 +276,7 @@
         "action_a_8"
       ],
       "window_anchor": "Center_Center",
-      "rotation_anchor": "Center_Center",
+      "transform_anchor": "Center_Center",
       "on_section_end": [
         {
           "action": "Enable_Section",
