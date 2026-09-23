@@ -83,6 +83,7 @@ delete_app :: proc(app: ^App) {
 	}
 	delete_frame_lib(&app.frame_lib)
 	delete_rig_status(&app.rig_status)
+	delete_editor_data(&app.editor_data)
 	free(app)
 }
 
@@ -126,9 +127,18 @@ app_load_rig :: proc(app: ^App, path: string) {
 		app.rig_data.sections[section_name] = AppSectionData{}
 	}
 	#partial switch app.scene {
-	case .Png_Tuber, .Editor:
+	case .Png_Tuber:
 		rig_rect := get_rig_rect(app.loaded_rig)
 		rl.SetWindowSize(math.max(i32(rig_rect.width), 100), math.max(i32(rig_rect.height), 100))
+	case .Editor:
+		rig_rect := get_rig_rect(app.loaded_rig)
+		rl.SetWindowSize(
+			math.max(i32(rig_rect.width) + 200, 100),
+			math.max(i32(rig_rect.height) + 50, 100),
+		)
+
+		clear_editor_data(&app.editor_data)
+		prepare_editor_data(app.loaded_rig, &app.editor_data)
 	}
 }
 
@@ -154,6 +164,18 @@ app_change_scene :: proc(app: ^App, scene: string) {
 				math.max(i32(rig_rect.width), 100),
 				math.max(i32(rig_rect.height), 100),
 			)
+		case .Editor:
+			if app.loaded_rig == nil {
+				break
+			}
+			rig_rect := get_rig_rect(app.loaded_rig)
+			rl.SetWindowSize(
+				math.max(i32(rig_rect.width) + 200, 100),
+				math.max(i32(rig_rect.height) + 50, 100),
+			)
+
+			clear_editor_data(&app.editor_data)
+			prepare_editor_data(app.loaded_rig, &app.editor_data)
 		}
 	}
 }
@@ -220,12 +242,34 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 	if rl.IsMouseButtonDown(.LEFT) {
 		app.editor_data.mouse_transform += rl.GetMouseDelta()
 	} else if rl.IsMouseButtonReleased(.LEFT) {
-		section, ok := &app.loaded_rig.sections[app.editor_data.selected_section]
-		cur_frame := &app.loaded_rig.frames[section.frames[app.editor_data.cur_frame]]
-		cur_frame.transform.position += app.editor_data.mouse_transform
-		app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
-		app_data_section.cur_transformer.position += app.editor_data.mouse_transform
+		section_name := app.editor_data.selected_section
+		section, ok := &app.loaded_rig.sections[section_name]
+		if ok {
+			section_frame_id := app.editor_data.cur_frame[section_name]
+			cur_frame := &app.loaded_rig.frames[section.frames[section_frame_id]]
+			cur_frame.transform.position += app.editor_data.mouse_transform
+			app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
+			app_data_section.cur_transformer.position += app.editor_data.mouse_transform
+		}
 		app.editor_data.mouse_transform = {0.0, 0.0}
+	}
+
+	mouse_wheel := rl.GetMouseWheelMove()
+	if mouse_wheel != 0 {
+		mouse_position := rl.GetMousePosition()
+		if is_position_in_rect(mouse_position, app.editor_data.frame_lib_rect) {
+			app.editor_data.frame_lib_offset = math.max(
+				app.editor_data.frame_lib_offset - mouse_wheel * 5.0,
+				0,
+			)
+		}
+
+		if is_position_in_rect(mouse_position, app.editor_data.sections_rect) {
+			app.editor_data.sections_offset = math.max(
+				app.editor_data.sections_offset - mouse_wheel * 5.0,
+				0,
+			)
+		}
 	}
 }
 
@@ -381,6 +425,8 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 }
 
 draw_editor :: proc(app: ^App, delta: f32) {
+	editor_border := la.Vector2f32{200, 50}
+
 	for zi in app.rig_status.z_layers {
 		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
@@ -388,11 +434,15 @@ draw_editor :: proc(app: ^App, delta: f32) {
 				continue
 			}
 
+			fmt.println(app.editor_data.cur_frame)
+
 			cur_frame, frame_ok := get_frame(
 				app.loaded_rig,
 				section_name,
-				app.rig_status.cur_frame[section_name],
+				app.editor_data.cur_frame[section_name],
 			)
+
+			fmt.println(cur_frame)
 
 			if !frame_ok {
 				continue
@@ -445,9 +495,25 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 			texture, texture_ok := app.frame_lib.textures[cur_frame.src]
 
-			frame_position := cur_transform.position + app.loaded_rig.position_offset
+			editor_anchor_offset :=
+				la.Vector2f32{1.0, 1.0} -
+				math_anchor_position(
+					1.0,
+					1.0,
+					app.loaded_rig.sections[section_name].transform_anchor,
+				)
+
+			frame_position :=
+				cur_transform.position +
+				app.loaded_rig.position_offset +
+				editor_border * editor_anchor_offset
+			fmt.println(
+				section_name == app.editor_data.selected_section,
+				section.connect_to_section == app.editor_data.selected_section,
+			)
 			if section_name == app.editor_data.selected_section ||
-			   section.connect_to_section == app.editor_data.selected_section {
+			   (len(section.connect_to_section) != 0 &&
+					   section.connect_to_section == app.editor_data.selected_section) {
 				frame_position += app.editor_data.mouse_transform
 			}
 
@@ -539,6 +605,13 @@ draw_editor :: proc(app: ^App, delta: f32) {
 				selected_section.transform_anchor,
 			) +
 			selected_section.window_anchor_offset
+
+		editor_anchor_offset :=
+			la.Vector2f32{1.0, 1.0} -
+			math_anchor_position(1.0, 1.0, selected_section.transform_anchor)
+
+		position_anchor += editor_anchor_offset * editor_border
+
 		draw_edit_rect(
 			rl.Rectangle {
 				cur_frame.transform.position.x +
@@ -562,7 +635,7 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			cur_frame.transform.position +
 			app.editor_data.mouse_transform
 
-		
+
 		rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
 		rl.DrawLineEx(
 			transform_anchor_position.xy - {10, 10},
@@ -580,7 +653,56 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 	}
 
-	fmt.println(rl.GuiButton({0, 0, 200, 50}, "test"))
+	pressed_frame := draw_avilable_frames(app)
+	fmt.println(pressed_frame)
+	pressed_section := draw_sections(app)
+	if len(pressed_section) != 0 {
+		app.editor_data.selected_section = pressed_section
+	}
+	fmt.println(pressed_section)
+
+	rl.DrawRectangleRec(
+		rl.Rectangle {
+			app.editor_data.frame_lib_rect.x,
+			app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height,
+			app.editor_data.frame_lib_rect.width,
+			app.editor_data.sections_rect.y - (app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height)
+		},
+		rl.BLACK
+	)
+
+	/*rl.DrawText(
+		strings.clone_to_cstring(app.editor_data.selected_section, context.temp_allocator),
+		10,
+		60,
+		24,
+		rl.BLACK,
+	)
+
+	if app.editor_data.selected_section != "" {
+
+		editor_cur_frame := fmt.tprint(app.editor_data.cur_frame[app.editor_data.selected_section])
+		max := uint(len(app.loaded_rig.sections[app.editor_data.selected_section].frames))
+
+		rl.DrawText(
+			strings.clone_to_cstring(editor_cur_frame, context.temp_allocator),
+			10,
+			120,
+			24,
+			rl.BLACK,
+		)
+		button_up := rl.GuiButton(rl.Rectangle{40, 110, 30, 20}, "+")
+		button_down := rl.GuiButton(rl.Rectangle{40, 130, 30, 20}, "-")
+		if button_up {
+			app.editor_data.cur_frame[app.editor_data.selected_section] =
+				(max + app.editor_data.cur_frame[app.editor_data.selected_section] + 1) % max
+		}
+
+		if button_down {
+			app.editor_data.cur_frame[app.editor_data.selected_section] =
+				(max + app.editor_data.cur_frame[app.editor_data.selected_section] + 1) % max
+		}
+	}*/
 }
 
 get_section_transform :: proc(
