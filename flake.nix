@@ -12,6 +12,7 @@
   in {
     devShells.${system}.default = pkgs.mkShell {
       packages = with pkgs; [
+		gcc
         odin
 		ols
 
@@ -31,7 +32,7 @@
 
 			pipewire
 			libpulseaudio
-		  ]
+		  ] + ":${toString ./.}/vendor/raygui"
 	  }";
     };
   };

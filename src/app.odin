@@ -12,7 +12,6 @@ import "core:thread"
 import ma "vendor:miniaudio"
 import rl "vendor:raylib"
 
-
 PORT := 9001
 command_mutex: sync.Mutex
 
@@ -580,6 +579,8 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 
 	}
+
+	fmt.println(rl.GuiButton({0, 0, 200, 50}, "test"))
 }
 
 get_section_transform :: proc(

@@ -10,9 +10,6 @@ import "core:mem"
 import "core:os"
 import "core:strings"
 
-import ma "vendor:miniaudio"
-import rl "vendor:raylib"
-
 WINDOW_WIDTH: i32 = 800
 WINDOW_HEIGHT: i32 = 600
 WINDOW_TITLE: cstring = "png-tuber studio"
