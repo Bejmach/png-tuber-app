@@ -1,5 +1,6 @@
 package png_tuber
 
+import "core:slice"
 import "core:fmt"
 import la "core:math/linalg"
 import "core:strings"
@@ -8,11 +9,14 @@ import rl "vendor:raylib"
 EditorData :: struct {
 	selected_section: string,
 	cur_frame:        map[string]uint,
+	editor_border:    la.Vector2f32,
 	mouse_transform:  la.Vector2f32,
 	frame_lib_rect:   rl.Rectangle,
 	frame_lib_offset: f32,
 	sections_rect:    rl.Rectangle,
 	sections_offset:  f32,
+	is_holding:       bool,
+	used_frames:      [dynamic]string,
 }
 
 prepare_editor_data :: proc(r: ^Rig, ed: ^EditorData) {
@@ -23,16 +27,25 @@ prepare_editor_data :: proc(r: ^Rig, ed: ^EditorData) {
 	ed.frame_lib_offset = 0
 	ed.sections_rect = rl.Rectangle{0, 190, 150, 100}
 	ed.sections_offset = 0
+	ed.editor_border = la.Vector2f32{150, 50}
+
+	for s_name, section in r.sections{
+		for f_name in section.frames{
+			append(&ed.used_frames, f_name)
+		}
+	}
 }
 
 clear_editor_data :: proc(ed: ^EditorData) {
 	ed.selected_section = ""
 	clear(&ed.cur_frame)
+	clear(&ed.used_frames)
 	ed.mouse_transform = {0.0, 0.0}
 }
 
 delete_editor_data :: proc(ed: ^EditorData) {
 	delete(ed.cur_frame)
+	delete(ed.used_frames)
 }
 
 draw_edit_rect :: proc(rect: rl.Rectangle) {
@@ -72,8 +85,6 @@ draw_avilable_frames :: proc(app: ^App) -> (pressed_frame: string) {
 		40,
 	}
 	for f_name, frame in app.loaded_rig.frames {
-		fmt.println(frame_rect, rect)
-
 		if frame_rect.y + frame_rect.height < rect.y || frame_rect.y > rect.y + rect.height {
 			frame_rect.y += frame_rect.height
 			continue
@@ -86,6 +97,16 @@ draw_avilable_frames :: proc(app: ^App) -> (pressed_frame: string) {
 		}
 
 		image, ok := app.frame_lib.textures[frame.src]
+		text_color: rl.Color
+		image_color: rl.Color
+		if slice.contains(app.editor_data.used_frames[:], f_name){
+			text_color = rl.RED
+			image_color = rl.GRAY
+		} else {
+			text_color = rl.BLACK
+			image_color = rl.WHITE
+		}
+
 		if ok {
 			rl.DrawTexturePro(
 				image,
@@ -93,15 +114,17 @@ draw_avilable_frames :: proc(app: ^App) -> (pressed_frame: string) {
 				rl.Rectangle{frame_rect.x + 2, frame_rect.y + 2, 36, 36},
 				{0, 0},
 				0,
-				rl.WHITE,
+				image_color,
 			)
 		}
+		
+
 		rl.DrawText(
 			strings.clone_to_cstring(f_name, context.temp_allocator),
 			i32(frame_rect.x) + 40,
 			i32(frame_rect.y) + 2,
 			12,
-			rl.BLACK,
+			text_color,
 		)
 		frame_rect.y += frame_rect.height
 	}
@@ -122,8 +145,6 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 		40,
 	}
 	for s_name, section in app.loaded_rig.sections {
-		fmt.println(frame_rect, rect)
-
 		if frame_rect.y + frame_rect.height < rect.y || frame_rect.y > rect.y + rect.height {
 			frame_rect.y += frame_rect.height
 			continue
@@ -154,7 +175,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 				)
 			}
 			text_color: rl.Color
-			if s_name == app.editor_data.selected_section{
+			if s_name == app.editor_data.selected_section {
 				text_color = rl.RED
 			} else {
 				text_color = rl.BLACK

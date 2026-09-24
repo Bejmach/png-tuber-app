@@ -66,7 +66,7 @@ Rig :: struct {
 	rotation_offset:    la.Vector2f32,
 	preserve_talk_time: f32,
 	volume_threshhold:  f32,
-	rig_path:          string,
+	rig_path:           string,
 }
 
 BindAction :: enum {
@@ -169,6 +169,44 @@ delete_animation_section :: proc(as: ^AnimationSection) {
 	delete_rig_commands(&as.on_section_end)
 
 	delete(as.volume_transforms)
+}
+
+is_section_following_section :: proc(r: ^Rig, section, target_section: string) -> bool {
+	cur_section, ok := r.sections[section]
+	if !ok {
+		return false
+	}
+	for len(cur_section.connect_to_section) != 0 {
+		if cur_section.connect_to_section == target_section {
+			return true
+		}
+		cur_section, ok = r.sections[cur_section.connect_to_section]
+		if !ok {
+			return false
+		}
+	}
+	return false
+}
+
+get_section_follow_position :: proc(r: ^Rig, section_name: string, frames: ^map[string]uint) -> la.Vector2f32 {
+	followed_position: la.Vector2f32
+	section, ok := r.sections[section_name]
+	cur_section := section.connect_to_section
+	for len(cur_section) != 0 {
+		section, ok := r.sections[cur_section]
+		if ok {
+			frame_name := section.frames[frames[cur_section]]
+			frame, ok := r.frames[frame_name]
+			if ok {
+				followed_position += frame.transform.position
+			}
+			cur_section = section.connect_to_section
+		} else {
+			break
+		}
+	}
+
+	return followed_position
 }
 
 Frame :: struct {

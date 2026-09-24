@@ -6,6 +6,7 @@ import la "core:math/linalg"
 import "core:net"
 import "core:os"
 import "core:reflect"
+import "core:slice"
 import "core:strings"
 import "core:sync"
 import "core:thread"
@@ -186,6 +187,44 @@ app_edit_select_section :: proc(app: ^App, section: string) {
 		app.editor_data.selected_section = section
 	}
 }
+/*app_edit_center_over_selection :: proc(app: ^App){
+	section_name := app.editor_data.selected_section
+	section, ok := app.loaded_rig.sections[section_name]
+	if !ok || len(section.frames) == 0{
+		return
+	}
+
+	frame_id := app.editor_data.cur_frame[section_name]
+	
+	frame_name := section.frames[frame_id]
+	frame, f_ok := app.loaded_rig.frames[frame_name]
+
+	if !f_ok{
+		return
+	}
+
+	frame_position := frame.transform.position
+
+	already_transformed := make([]string, len(app.loaded_rig.frames))
+	i := 0
+
+	for s_name, section in app.loaded_rig.sections{
+		if is_section_following_section(app.loaded_rig, s_name, section_name){
+			continue
+		}
+		for f_name in section.frames{
+			if slice.contains(already_transformed, f_name){
+				continue
+			}
+			frame, ok := &app.loaded_rig.frames[f_name]
+			frame.transform.position -= frame_position
+		}
+	}
+
+	for f_name, &frame in app.loaded_rig.frames{
+		frame.transform.position -= frame_position
+	}
+}*/
 
 app_rig_command :: proc(app: ^App, command: string) {
 	commands := parse_command(command)
@@ -239,24 +278,77 @@ app_process_png_tuber :: proc(app: ^App, delta: f32) {
 }
 
 app_process_editor :: proc(app: ^App, delta: f32) {
-	if rl.IsMouseButtonDown(.LEFT) {
+	// Collect all required data
+	mouse_position := rl.GetMousePosition()
+	section_name := app.editor_data.selected_section
+	section, s_ok := &app.loaded_rig.sections[section_name]
+	section_frame_id := app.editor_data.cur_frame[section_name]
+	frame_name: string = ""
+	frame: ^Frame = nil
+	f_ok: bool = false
+	position_anchor: la.Vector2f32
+	editor_anchor_offset: la.Vector2f32
+	frame_rect: rl.Rectangle
+
+	if s_ok && len(section.frames) != 0 {
+		frame_name = section.frames[section_frame_id]
+		frame, f_ok = &app.loaded_rig.frames[frame_name]
+
+		position_anchor :=
+			math_anchor_position(
+				f32(rl.GetScreenWidth()),
+				f32(rl.GetScreenHeight()),
+				section.window_anchor,
+			) -
+			math_anchor_position(
+				frame.transform.width,
+				frame.transform.height,
+				section.transform_anchor,
+			) +
+			section.window_anchor_offset
+
+		editor_anchor_offset :=
+			la.Vector2f32{1.0, 1.0} - math_anchor_position(1.0, 1.0, section.transform_anchor)
+
+		position_anchor += editor_anchor_offset * app.editor_data.editor_border
+
+		frame_rect = rl.Rectangle {
+			frame.transform.position.x + position_anchor.x + app.editor_data.mouse_transform.x,
+			frame.transform.position.y + position_anchor.y + app.editor_data.mouse_transform.y,
+			frame.transform.width,
+			frame.transform.height,
+		}
+	}
+
+	if rl.IsMouseButtonPressed(.LEFT) &&
+	   f_ok &&
+	   mouse_position.x > app.editor_data.editor_border.x &&
+	   mouse_position.y > app.editor_data.editor_border.y {
+
+		if is_position_in_rect(mouse_position, frame_rect) {
+			app.editor_data.is_holding = true
+		}
+	}
+
+	if app.editor_data.is_holding {
 		app.editor_data.mouse_transform += rl.GetMouseDelta()
-	} else if rl.IsMouseButtonReleased(.LEFT) {
-		section_name := app.editor_data.selected_section
-		section, ok := &app.loaded_rig.sections[section_name]
-		if ok {
-			section_frame_id := app.editor_data.cur_frame[section_name]
-			cur_frame := &app.loaded_rig.frames[section.frames[section_frame_id]]
-			cur_frame.transform.position += app.editor_data.mouse_transform
+	}
+
+	if (rl.IsMouseButtonReleased(.LEFT) ||
+		   mouse_position.x <= app.editor_data.editor_border.x ||
+		   mouse_position.y <= app.editor_data.editor_border.y) &&
+	   app.editor_data.is_holding {
+		if s_ok {
+			frame.transform.position += app.editor_data.mouse_transform
 			app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
 			app_data_section.cur_transformer.position += app.editor_data.mouse_transform
 		}
 		app.editor_data.mouse_transform = {0.0, 0.0}
+		app.editor_data.is_holding = false
 	}
 
 	mouse_wheel := rl.GetMouseWheelMove()
 	if mouse_wheel != 0 {
-		mouse_position := rl.GetMousePosition()
 		if is_position_in_rect(mouse_position, app.editor_data.frame_lib_rect) {
 			app.editor_data.frame_lib_offset = math.max(
 				app.editor_data.frame_lib_offset - mouse_wheel * 5.0,
@@ -425,8 +517,6 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 }
 
 draw_editor :: proc(app: ^App, delta: f32) {
-	editor_border := la.Vector2f32{200, 50}
-
 	for zi in app.rig_status.z_layers {
 		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
@@ -434,15 +524,11 @@ draw_editor :: proc(app: ^App, delta: f32) {
 				continue
 			}
 
-			fmt.println(app.editor_data.cur_frame)
-
 			cur_frame, frame_ok := get_frame(
 				app.loaded_rig,
 				section_name,
 				app.editor_data.cur_frame[section_name],
 			)
-
-			fmt.println(cur_frame)
 
 			if !frame_ok {
 				continue
@@ -506,14 +592,13 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			frame_position :=
 				cur_transform.position +
 				app.loaded_rig.position_offset +
-				editor_border * editor_anchor_offset
-			fmt.println(
-				section_name == app.editor_data.selected_section,
-				section.connect_to_section == app.editor_data.selected_section,
-			)
+				app.editor_data.editor_border * editor_anchor_offset
 			if section_name == app.editor_data.selected_section ||
-			   (len(section.connect_to_section) != 0 &&
-					   section.connect_to_section == app.editor_data.selected_section) {
+			   (is_section_following_section(
+						   app.loaded_rig,
+						   section_name,
+						   app.editor_data.selected_section,
+					   )) {
 				frame_position += app.editor_data.mouse_transform
 			}
 
@@ -587,6 +672,12 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 	selected_section, ok := app.loaded_rig.sections[app.editor_data.selected_section]
 	if ok {
+		followed_position := get_section_follow_position(
+			app.loaded_rig,
+			app.editor_data.selected_section,
+			&app.editor_data.cur_frame,
+		)
+
 		if len(app.loaded_rig.frames) < 0 {
 			return
 		}
@@ -610,7 +701,7 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			la.Vector2f32{1.0, 1.0} -
 			math_anchor_position(1.0, 1.0, selected_section.transform_anchor)
 
-		position_anchor += editor_anchor_offset * editor_border
+		position_anchor += editor_anchor_offset * app.editor_data.editor_border + followed_position
 
 		draw_edit_rect(
 			rl.Rectangle {
@@ -632,6 +723,7 @@ draw_editor :: proc(app: ^App, delta: f32) {
 				cur_frame.transform.height,
 				selected_section.transform_anchor,
 			) +
+			selected_section.transform_anchor_offset +
 			cur_frame.transform.position +
 			app.editor_data.mouse_transform
 
@@ -654,21 +746,20 @@ draw_editor :: proc(app: ^App, delta: f32) {
 	}
 
 	pressed_frame := draw_avilable_frames(app)
-	fmt.println(pressed_frame)
 	pressed_section := draw_sections(app)
 	if len(pressed_section) != 0 {
 		app.editor_data.selected_section = pressed_section
 	}
-	fmt.println(pressed_section)
 
 	rl.DrawRectangleRec(
 		rl.Rectangle {
 			app.editor_data.frame_lib_rect.x,
 			app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height,
 			app.editor_data.frame_lib_rect.width,
-			app.editor_data.sections_rect.y - (app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height)
+			app.editor_data.sections_rect.y -
+			(app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height),
 		},
-		rl.BLACK
+		rl.BLACK,
 	)
 
 	/*rl.DrawText(
