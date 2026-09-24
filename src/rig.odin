@@ -655,7 +655,7 @@ load_textures :: proc(tl: ^TextureLib, r: ^Rig) {
 	}
 }
 
-get_texture_factor :: proc(
+get_frame_factor :: proc(
 	r: ^Rig,
 	section: string,
 	frame_id: uint,

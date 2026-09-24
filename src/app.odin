@@ -339,6 +339,7 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 		   mouse_position.y <= app.editor_data.editor_border.y) &&
 	   app.editor_data.is_holding {
 		if s_ok {
+			fmt.println(frame)
 			frame.transform.position += app.editor_data.mouse_transform
 			app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
 			app_data_section.cur_transformer.position += app.editor_data.mouse_transform
@@ -377,10 +378,25 @@ app_draw :: proc(app: ^App, delta: f32) {
 }
 
 draw_menu :: proc(app: ^App) {
+	start_rect := rl.Rectangle{f32(rl.GetScreenWidth()) / 2.0 - 75, 20, 150, 40}
+	editor_rect := rl.Rectangle{f32(rl.GetScreenWidth()) / 2.0 - 75, 80, 150, 40}
 
+	start_button := rl.GuiButton(start_rect, "Start")
+	editor_button := rl.GuiButton(editor_rect, "Editor")
+
+	if start_button {
+		app_command(app, .Change_Scene, "Png_Tuber")
+	} else if editor_button {
+		app_command(app, .Change_Scene, "Editor")
+	}
 }
 
 draw_png_tuber :: proc(app: ^App, delta: f32) {
+	if app.loaded_rig == nil {
+		// load_rig_popup
+		return
+	}
+
 	for zi in app.rig_status.z_layers {
 		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
@@ -398,13 +414,7 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 				continue
 			}
 
-			cur_transform := get_section_transform(
-				app.loaded_rig,
-				&app.rig_status,
-				app.rig_data,
-				section_name,
-				delta,
-			)
+			cur_transform := get_section_transform(app, section_name, delta)
 
 			width_jiggle :=
 				(app.rig_data.sections[section_name].total_velocities.x -
@@ -517,6 +527,11 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 }
 
 draw_editor :: proc(app: ^App, delta: f32) {
+	if app.loaded_rig == nil {
+		// load_rig_popup
+		return
+	}
+
 	for zi in app.rig_status.z_layers {
 		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
@@ -534,13 +549,9 @@ draw_editor :: proc(app: ^App, delta: f32) {
 				continue
 			}
 
-			cur_transform := get_section_transform(
-				app.loaded_rig,
-				&app.rig_status,
-				app.rig_data,
-				section_name,
-				delta,
-			)
+			cur_transform := get_section_transform(app, section_name, delta)
+
+			fmt.println(cur_transform)
 
 			width_jiggle :=
 				(app.rig_data.sections[section_name].total_velocities.x -
@@ -670,8 +681,8 @@ draw_editor :: proc(app: ^App, delta: f32) {
 		}
 	}
 
-	selected_section, ok := app.loaded_rig.sections[app.editor_data.selected_section]
-	if ok {
+	selected_section, s_ok := app.loaded_rig.sections[app.editor_data.selected_section]
+	if s_ok {
 		followed_position := get_section_follow_position(
 			app.loaded_rig,
 			app.editor_data.selected_section,
@@ -681,7 +692,7 @@ draw_editor :: proc(app: ^App, delta: f32) {
 		if len(app.loaded_rig.frames) < 0 {
 			return
 		}
-		cur_frame_id := 0
+		cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_section]
 
 		cur_frame := app.loaded_rig.frames[selected_section.frames[cur_frame_id]]
 		position_anchor :=
@@ -751,6 +762,9 @@ draw_editor :: proc(app: ^App, delta: f32) {
 		app.editor_data.selected_section = pressed_section
 	}
 
+	if s_ok {
+		draw_frame_controll(app, la.Vector2f32{10, 320})
+	}
 	rl.DrawRectangleRec(
 		rl.Rectangle {
 			app.editor_data.frame_lib_rect.x,
@@ -796,20 +810,29 @@ draw_editor :: proc(app: ^App, delta: f32) {
 	}*/
 }
 
-get_section_transform :: proc(
-	r: ^Rig,
-	rs: ^RigStatus,
-	ard: AppRigData,
-	section_name: string,
-	delta: f32,
-) -> Transformer {
-	section, ok := r.sections[section_name]
+get_section_transform :: proc(app: ^App, section_name: string, delta: f32) -> Transformer {
+	section, ok := app.loaded_rig.sections[section_name]
 
 	if !ok {
 		return Transformer{}
 	}
 
-	cur_frame, frame_ok := get_frame(r, section_name, rs.cur_frame[section_name])
+	cur_frame: ^Frame
+	frame_ok: bool
+	switch app.scene {
+	case .Menu, .Png_Tuber:
+		cur_frame, frame_ok = get_frame(
+			app.loaded_rig,
+			section_name,
+			app.rig_status.cur_frame[section_name],
+		)
+	case .Editor:
+		cur_frame, frame_ok = get_frame(
+			app.loaded_rig,
+			section_name,
+			app.editor_data.cur_frame[section_name],
+		)
+	}
 
 	if !frame_ok {
 		return Transformer{}
@@ -819,14 +842,28 @@ get_section_transform :: proc(
 
 	db := get_db() //decibels
 
-	frame_factor := get_texture_factor(
-		r,
-		section_name,
-		rs.cur_frame[section_name],
-		rs.frame_time[section_name],
-	)
+	frame_factor: f32
+	switch app.scene {
+	case .Menu, .Png_Tuber:
+		frame_factor = get_frame_factor(
+			app.loaded_rig,
+			section_name,
+			app.rig_status.cur_frame[section_name],
+			app.rig_status.frame_time[section_name],
+		)
+	case .Editor:
+		frame_factor = get_frame_factor(
+			app.loaded_rig,
+			section_name,
+			app.editor_data.cur_frame[section_name],
+			0.0,
+		)
+	}
 
-	rig_data_section := &ard.sections[section_name]
+	fmt.println(cur_frame)
+
+
+	rig_data_section := &app.rig_data.sections[section_name]
 
 	prev_transform := add_transformers(
 		&rig_data_section.cur_transformer,
@@ -849,28 +886,38 @@ get_section_transform :: proc(
 		&rig_data_section.cur_volume_velocities,
 	)
 
-	next_frame_id: int
+	next_frame_id: int = 0
 
-	switch section.loop_mode {
-	case .Loop:
-		next_frame_id =
-			(int(rs.cur_frame[section_name]) + rs.frame_direction[section_name]) % sec_len
-	case .None:
-		next_frame_id = math.min(
-			len(section.frames) - 1,
-			int(rs.cur_frame[section_name]) + rs.frame_direction[section_name],
-		)
-	case .Revert:
-		next_frame_id = (int(rs.cur_frame[section_name]) + rs.frame_direction[section_name])
-		if next_frame_id >= len(section.frames) {
-			next_frame_id = (len(section.frames) - 1) * 2 - next_frame_id
-		} else if next_frame_id < 0 {
-			next_frame_id *= -1
+	#partial switch app.scene {
+	case .Png_Tuber:
+		switch section.loop_mode {
+		case .Loop:
+			next_frame_id =
+				(int(app.rig_status.cur_frame[section_name]) +
+					app.rig_status.frame_direction[section_name]) %
+				sec_len
+		case .None:
+			next_frame_id = math.min(
+				len(section.frames) - 1,
+				int(app.rig_status.cur_frame[section_name]) +
+				app.rig_status.frame_direction[section_name],
+			)
+		case .Revert:
+			next_frame_id =
+				(int(app.rig_status.cur_frame[section_name]) +
+					app.rig_status.frame_direction[section_name])
+			if next_frame_id >= len(section.frames) {
+				next_frame_id = (len(section.frames) - 1) * 2 - next_frame_id
+			} else if next_frame_id < 0 {
+				next_frame_id *= -1
+			}
 		}
+	case .Editor:
+		next_frame_id = int(app.editor_data.cur_frame[section_name])
 	}
 
 
-	next_frame, _ := get_frame(r, section_name, uint(next_frame_id))
+	next_frame, _ := get_frame(app.loaded_rig, section_name, uint(next_frame_id))
 
 	next_frame_transform := add_transformers(
 		&next_frame.transform,
@@ -902,9 +949,9 @@ get_section_transform :: proc(
 	)
 
 	if len(section.connect_to_section) != 0 {
-		conn_section_ok := section.connect_to_section in r.sections
+		conn_section_ok := section.connect_to_section in app.loaded_rig.sections
 		if conn_section_ok {
-			connected_section, ok := ard.sections[section.connect_to_section]
+			connected_section, ok := app.rig_data.sections[section.connect_to_section]
 			if ok {
 				cur_transform.position +=
 					connected_section.cur_transformer.position +
@@ -1048,8 +1095,8 @@ app_run :: proc() {
 
 	//app_command(app, .Load_Rig, "./data/example")
 	app_command(app, .Load_Rig, "./data/multi_section")
-	app_command(app, .Change_Scene, "Editor")
-	app_command(app, .Edit_Select_Section, "face")
+	//app_command(app, .Change_Scene, "Editor")
+	//app_command(app, .Edit_Select_Section, "face")
 
 	//fmt.printfln("%#v", app.loaded_rig)
 
@@ -1071,8 +1118,12 @@ app_run :: proc() {
 		sync.mutex_unlock(&command_mutex)
 
 		if rl.WindowShouldClose() {
-			app.running = false
-			break
+			switch app.scene {
+			case .Editor, .Png_Tuber:
+				app_command(app, .Change_Scene, "Menu")
+			case .Menu:
+				app.running = false
+			}
 		}
 		if !app.muted {
 			analyze_audio()

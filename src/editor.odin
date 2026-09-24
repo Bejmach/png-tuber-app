@@ -141,10 +141,10 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 	frame_rect := rl.Rectangle {
 		rect.x + 2.0,
 		rect.y - app.editor_data.sections_offset,
-		rect.width - 4,
+		rect.width - 42,
 		40,
 	}
-	for s_name, section in app.loaded_rig.sections {
+	for s_name, &section in app.loaded_rig.sections {
 		if frame_rect.y + frame_rect.height < rect.y || frame_rect.y > rect.y + rect.height {
 			frame_rect.y += frame_rect.height
 			continue
@@ -156,6 +156,19 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			pressed_section = s_name
 		}
 
+		visible_text: cstring
+		visible_color: rl.Color
+		if section.visible{
+			visible_text = "0"
+			visible_color = rl.WHITE
+		} else {
+			visible_text = "-"
+			visible_color = rl.GRAY
+		}
+
+		visible_pressed := rl.GuiButton(rl.Rectangle {frame_rect.x + frame_rect.width, frame_rect.y, 40, 40}, "")
+		rl.DrawText(visible_text, i32(frame_rect.x + frame_rect.width + 10), i32(frame_rect.y + 2), 36, visible_color)
+
 		if len(section.frames) > 0 {
 
 			cur_frame_id, fi_ok := app.editor_data.cur_frame[s_name]
@@ -164,6 +177,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			frame, f_ok := app.loaded_rig.frames[cur_frame]
 
 			image, i_ok := app.frame_lib.textures[frame.src]
+			
 			if i_ok {
 				rl.DrawTexturePro(
 					image,
@@ -171,7 +185,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 					rl.Rectangle{frame_rect.x + 2, frame_rect.y + 2, 36, 36},
 					{0, 0},
 					0,
-					rl.WHITE,
+					visible_color,
 				)
 			}
 			text_color: rl.Color
@@ -180,6 +194,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			} else {
 				text_color = rl.BLACK
 			}
+			rl.ColorTint(text_color, visible_color)
 			rl.DrawText(
 				strings.clone_to_cstring(s_name, context.temp_allocator),
 				i32(frame_rect.x) + 40,
@@ -189,9 +204,32 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			)
 			frame_rect.y += frame_rect.height
 		}
+
+		if visible_pressed{
+			section.visible = !section.visible
+		}
 	}
 
 	return pressed_section
+}
+
+draw_frame_controll :: proc(app: ^App, pos: la.Vector2f32){
+	frame_id := app.editor_data.cur_frame[app.editor_data.selected_section]
+	frame_id_str := fmt.tprint(frame_id)
+	rl.DrawText(strings.clone_to_cstring(frame_id_str, context.temp_allocator), i32(pos.x), i32(pos.y), 36, rl.BLACK)
+	increase := rl.GuiButton(rl.Rectangle{pos.x + 40, pos.y, 20, 16}, "+")
+	decrease := rl.GuiButton(rl.Rectangle{pos.x + 40, pos.y + 20, 20, 16}, "-")
+
+	if increase{
+		max_frames := uint(len(app.loaded_rig.sections[app.editor_data.selected_section].frames))
+
+		next_frame := (max_frames + frame_id + 1) % max_frames
+		app.editor_data.cur_frame[app.editor_data.selected_section] = (max_frames + frame_id + 1) % max_frames 
+	} else if decrease{
+		max_frames := uint(len(app.loaded_rig.sections[app.editor_data.selected_section].frames))
+
+		app.editor_data.cur_frame[app.editor_data.selected_section] = (max_frames + frame_id - 1) % max_frames
+	}
 }
 
 draw_selected_section :: proc(app: ^App) {
