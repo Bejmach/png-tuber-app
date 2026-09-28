@@ -50,6 +50,7 @@
       "visible": true,
       "loop_mode": "None",
       "z_index": 0,
+	  "priority": -1,
       "frames": [
         "face_1"
       ],
@@ -78,7 +79,7 @@
       "final_vt_lerp_data": {
         "y_mode": "DampedOscillator",
         "x_mode": "DampedOscillator",
-        "spring": 100,
+        "spring": 80,
         "damp": 5
       },
       "y_softness": 0.05,

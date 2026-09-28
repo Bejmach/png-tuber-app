@@ -94,6 +94,9 @@ AppCommand :: enum {
 	Change_Scene,
 	Rig_Command,
 	Edit_Select_Section,
+	Mute,
+	Unmute,
+	Toggle_Mute,
 }
 
 app_command :: proc(app: ^App, command: AppCommand, payload: string) {
@@ -108,21 +111,28 @@ app_command :: proc(app: ^App, command: AppCommand, payload: string) {
 		app_rig_command(app, payload)
 	case .Edit_Select_Section:
 		app_edit_select_section(app, payload)
+	case .Mute:
+		app.muted = true
+	case .Unmute:
+		app.muted = false
+	case .Toggle_Mute:
+		app.muted = !app.muted
 	}
 }
 
 app_load_rig :: proc(app: ^App, path: string) {
+	rig, ok := load_rig(path)
+	if !ok {
+		return
+	}
 	if app.loaded_rig != nil {
 		delete_rig(app.loaded_rig)
 		clear_frame_lib(&app.frame_lib)
 		clear_rig_data(&app.rig_data)
 		clear_rig_status(&app.rig_status)
 	}
-	rig, ok := load_rig(path)
-	if ok {
-		app.loaded_rig = rig
-		load_textures(&app.frame_lib, rig)
-	}
+	app.loaded_rig = rig
+	load_textures(&app.frame_lib, rig)
 	prepare_rig_status(&app.rig_status, app.loaded_rig)
 	for section_name, _ in app.loaded_rig.sections {
 		app.rig_data.sections[section_name] = AppSectionData{}
@@ -178,6 +188,8 @@ app_change_scene :: proc(app: ^App, scene: string) {
 			clear_editor_data(&app.editor_data)
 			prepare_editor_data(app.loaded_rig, &app.editor_data)
 		}
+		
+		reload_textures(&app.rig_status)
 	}
 }
 
@@ -339,7 +351,6 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 		   mouse_position.y <= app.editor_data.editor_border.y) &&
 	   app.editor_data.is_holding {
 		if s_ok {
-			fmt.println(frame)
 			frame.transform.position += app.editor_data.mouse_transform
 			app_data_section := &app.rig_data.sections[app.editor_data.selected_section]
 			app_data_section.cur_transformer.position += app.editor_data.mouse_transform
@@ -381,8 +392,10 @@ draw_menu :: proc(app: ^App) {
 	start_rect := rl.Rectangle{f32(rl.GetScreenWidth()) / 2.0 - 75, 20, 150, 40}
 	editor_rect := rl.Rectangle{f32(rl.GetScreenWidth()) / 2.0 - 75, 80, 150, 40}
 
+	rl.BeginTextureMode(app.rig_status.final_texture)
 	start_button := rl.GuiButton(start_rect, "Start")
 	editor_button := rl.GuiButton(editor_rect, "Editor")
+	rl.EndTextureMode()
 
 	if start_button {
 		app_command(app, .Change_Scene, "Png_Tuber")
@@ -392,15 +405,22 @@ draw_menu :: proc(app: ^App) {
 }
 
 draw_png_tuber :: proc(app: ^App, delta: f32) {
+
 	if app.loaded_rig == nil {
 		// load_rig_popup
 		return
 	}
 
-	for zi in app.rig_status.z_layers {
+	for _, texture in app.rig_status.z_textures {
+		rl.BeginTextureMode(texture)
+		rl.ClearBackground(rl.ColorAlpha(rl.WHITE, 0.0))
+		rl.EndTextureMode()
+	}
+
+	for priority in app.rig_status.priorities {
 		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
-			if section.z_index != zi || !section.visible {
+			if section.priority != priority || !section.visible {
 				continue
 			}
 
@@ -413,6 +433,7 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 			if !frame_ok {
 				continue
 			}
+
 
 			cur_transform := get_section_transform(app, section_name, delta)
 
@@ -508,6 +529,9 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 			//fmt.println(min_x, max_x, min_y, max_y)
 
 			if texture_ok {
+				z_texture := app.rig_status.z_textures[section.z_index]
+
+				rl.BeginTextureMode(z_texture)
 				rl.DrawTexturePro(
 					texture,
 					{0, 0, f32(texture.width), f32(texture.height)},
@@ -521,9 +545,24 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 					cur_transform.rotation,
 					frame_tint,
 				)
+				rl.EndTextureMode()
 			}
 		}
 	}
+
+	rl.BeginTextureMode(app.rig_status.final_texture)
+	{
+		for z_index in app.rig_status.z_layers {
+			texture := app.rig_status.z_textures[z_index].texture
+			rl.DrawTextureRec(
+				texture,
+				{0, 0, f32(texture.width), -f32(texture.height)},
+				{0, 0},
+				rl.WHITE,
+			)
+		}
+	}
+	rl.EndTextureMode()
 }
 
 draw_editor :: proc(app: ^App, delta: f32) {
@@ -532,10 +571,16 @@ draw_editor :: proc(app: ^App, delta: f32) {
 		return
 	}
 
-	for zi in app.rig_status.z_layers {
+	for _, texture in app.rig_status.z_textures {
+		rl.BeginTextureMode(texture)
+		rl.ClearBackground(rl.ColorAlpha(rl.WHITE, 0.0))
+		rl.EndTextureMode()
+	}
+
+	for priority in app.rig_status.priorities {
 		for section_name, &section in app.loaded_rig.sections {
 			// skip overlays
-			if section.z_index != zi || !section.visible {
+			if section.priority != priority || !section.visible {
 				continue
 			}
 
@@ -550,8 +595,6 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			}
 
 			cur_transform := get_section_transform(app, section_name, delta)
-
-			fmt.println(cur_transform)
 
 			width_jiggle :=
 				(app.rig_data.sections[section_name].total_velocities.x -
@@ -664,6 +707,9 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			//fmt.println(min_x, max_x, min_y, max_y)
 
 			if texture_ok {
+				z_texture := app.rig_status.z_textures[section.z_index]
+
+				rl.BeginTextureMode(z_texture)
 				rl.DrawTexturePro(
 					texture,
 					{0, 0, f32(texture.width), f32(texture.height)},
@@ -677,104 +723,122 @@ draw_editor :: proc(app: ^App, delta: f32) {
 					cur_transform.rotation,
 					frame_tint,
 				)
+				rl.EndTextureMode()
 			}
 		}
 	}
 
-	selected_section, s_ok := app.loaded_rig.sections[app.editor_data.selected_section]
-	if s_ok {
-		followed_position := get_section_follow_position(
-			app.loaded_rig,
-			app.editor_data.selected_section,
-			&app.editor_data.cur_frame,
-		)
+	rl.BeginTextureMode(app.rig_status.final_texture)
 
-		if len(app.loaded_rig.frames) < 0 {
-			return
+	{
+		for z_index in app.rig_status.z_layers {
+			texture := app.rig_status.z_textures[z_index].texture
+			rl.DrawTextureRec(
+				texture,
+				{0, 0, f32(texture.width), -f32(texture.height)},
+				{0, 0},
+				rl.WHITE,
+			)
 		}
-		cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_section]
 
-		cur_frame := app.loaded_rig.frames[selected_section.frames[cur_frame_id]]
-		position_anchor :=
-			math_anchor_position(
-				f32(rl.GetScreenWidth()),
-				f32(rl.GetScreenHeight()),
-				selected_section.window_anchor,
-			) -
-			math_anchor_position(
-				cur_frame.transform.width,
-				cur_frame.transform.height,
-				selected_section.transform_anchor,
-			) +
-			selected_section.window_anchor_offset
+		selected_section, s_ok := app.loaded_rig.sections[app.editor_data.selected_section]
+		if s_ok {
+			followed_position := get_section_follow_position(
+				app.loaded_rig,
+				app.editor_data.selected_section,
+				&app.editor_data.cur_frame,
+			)
 
-		editor_anchor_offset :=
-			la.Vector2f32{1.0, 1.0} -
-			math_anchor_position(1.0, 1.0, selected_section.transform_anchor)
+			if len(app.loaded_rig.frames) < 0 {
+				return
+			}
+			cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_section]
 
-		position_anchor += editor_anchor_offset * app.editor_data.editor_border + followed_position
+			cur_frame := app.loaded_rig.frames[selected_section.frames[cur_frame_id]]
+			position_anchor :=
+				math_anchor_position(
+					f32(rl.GetScreenWidth()),
+					f32(rl.GetScreenHeight()),
+					selected_section.window_anchor,
+				) -
+				math_anchor_position(
+					cur_frame.transform.width,
+					cur_frame.transform.height,
+					selected_section.transform_anchor,
+				) +
+				selected_section.window_anchor_offset
 
-		draw_edit_rect(
+			editor_anchor_offset :=
+				la.Vector2f32{1.0, 1.0} -
+				math_anchor_position(1.0, 1.0, selected_section.transform_anchor)
+
+			position_anchor +=
+				editor_anchor_offset * app.editor_data.editor_border + followed_position
+
+			draw_edit_rect(
+				rl.Rectangle {
+					cur_frame.transform.position.x +
+					position_anchor.x +
+					app.editor_data.mouse_transform.x,
+					cur_frame.transform.position.y +
+					position_anchor.y +
+					app.editor_data.mouse_transform.y,
+					cur_frame.transform.width,
+					cur_frame.transform.height,
+				},
+			)
+
+			transform_anchor_position :=
+				position_anchor +
+				math_anchor_position(
+					cur_frame.transform.width,
+					cur_frame.transform.height,
+					selected_section.transform_anchor,
+				) +
+				selected_section.transform_anchor_offset +
+				cur_frame.transform.position +
+				app.editor_data.mouse_transform
+
+
+			rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
+			rl.DrawLineEx(
+				transform_anchor_position.xy - {10, 10},
+				transform_anchor_position.xy + {10, 10},
+				1.0,
+				rl.BLUE,
+			)
+			rl.DrawLineEx(
+				transform_anchor_position.xy - {10, -10},
+				transform_anchor_position.xy + {10, -10},
+				1.0,
+				rl.BLUE,
+			)
+
+
+		}
+
+		pressed_frame := draw_avilable_frames(app)
+		pressed_section := draw_sections(app)
+		if len(pressed_section) != 0 {
+			app.editor_data.selected_section = pressed_section
+		}
+
+		if s_ok {
+			draw_frame_controll(app, la.Vector2f32{10, 320})
+		}
+		rl.DrawRectangleRec(
 			rl.Rectangle {
-				cur_frame.transform.position.x +
-				position_anchor.x +
-				app.editor_data.mouse_transform.x,
-				cur_frame.transform.position.y +
-				position_anchor.y +
-				app.editor_data.mouse_transform.y,
-				cur_frame.transform.width,
-				cur_frame.transform.height,
+				app.editor_data.frame_lib_rect.x,
+				app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height,
+				app.editor_data.frame_lib_rect.width,
+				app.editor_data.sections_rect.y -
+				(app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height),
 			},
+			rl.BLACK,
 		)
-
-		transform_anchor_position :=
-			position_anchor +
-			math_anchor_position(
-				cur_frame.transform.width,
-				cur_frame.transform.height,
-				selected_section.transform_anchor,
-			) +
-			selected_section.transform_anchor_offset +
-			cur_frame.transform.position +
-			app.editor_data.mouse_transform
-
-
-		rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
-		rl.DrawLineEx(
-			transform_anchor_position.xy - {10, 10},
-			transform_anchor_position.xy + {10, 10},
-			1.0,
-			rl.BLUE,
-		)
-		rl.DrawLineEx(
-			transform_anchor_position.xy - {10, -10},
-			transform_anchor_position.xy + {10, -10},
-			1.0,
-			rl.BLUE,
-		)
-
-
 	}
 
-	pressed_frame := draw_avilable_frames(app)
-	pressed_section := draw_sections(app)
-	if len(pressed_section) != 0 {
-		app.editor_data.selected_section = pressed_section
-	}
-
-	if s_ok {
-		draw_frame_controll(app, la.Vector2f32{10, 320})
-	}
-	rl.DrawRectangleRec(
-		rl.Rectangle {
-			app.editor_data.frame_lib_rect.x,
-			app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height,
-			app.editor_data.frame_lib_rect.width,
-			app.editor_data.sections_rect.y -
-			(app.editor_data.frame_lib_rect.y + app.editor_data.frame_lib_rect.height),
-		},
-		rl.BLACK,
-	)
+	rl.EndTextureMode()
 
 	/*rl.DrawText(
 		strings.clone_to_cstring(app.editor_data.selected_section, context.temp_allocator),
@@ -859,9 +923,6 @@ get_section_transform :: proc(app: ^App, section_name: string, delta: f32) -> Tr
 			0.0,
 		)
 	}
-
-	fmt.println(cur_frame)
-
 
 	rig_data_section := &app.rig_data.sections[section_name]
 
@@ -1095,7 +1156,7 @@ app_run :: proc() {
 
 	//app_command(app, .Load_Rig, "./data/example")
 	app_command(app, .Load_Rig, "./data/multi_section")
-	//app_command(app, .Change_Scene, "Editor")
+	app_command(app, .Change_Scene, "Png_Tuber")
 	//app_command(app, .Edit_Select_Section, "face")
 
 	//fmt.printfln("%#v", app.loaded_rig)
@@ -1129,15 +1190,32 @@ app_run :: proc() {
 			analyze_audio()
 		}
 
+		if rl.IsWindowResized() {
+			reload_textures(&app.rig_status)
+		}
+
 		delta := rl.GetFrameTime() * app.time_speed
 
 		app_process(app, delta)
 
-		rl.BeginDrawing()
+		rl.BeginTextureMode(app.rig_status.final_texture)
 		rl.ClearBackground(app.settings.background_color)
-		{
-			app_draw(app, delta)
-		}
+		rl.EndTextureMode()
+
+		app_draw(app, delta)
+
+		rl.BeginDrawing()
+		rl.DrawTextureRec(
+			app.rig_status.final_texture.texture,
+			{
+				0,
+				0,
+				f32(app.rig_status.final_texture.texture.width),
+				-f32(app.rig_status.final_texture.texture.height),
+			},
+			{0, 0},
+			rl.WHITE,
+		)
 		rl.EndDrawing()
 
 		free_all(context.temp_allocator)

@@ -144,6 +144,7 @@ AnimationSection :: struct {
 	loop_mode:               LoopMode,
 	reset_on_enter:          bool,
 	z_index:                 int,
+	priority:                int, // priority of transformation process, lower runs faster
 	frames:                  []string,
 	window_anchor:           Anchor,
 	window_anchor_offset:    la.Vector2f32,
@@ -188,7 +189,11 @@ is_section_following_section :: proc(r: ^Rig, section, target_section: string) -
 	return false
 }
 
-get_section_follow_position :: proc(r: ^Rig, section_name: string, frames: ^map[string]uint) -> la.Vector2f32 {
+get_section_follow_position :: proc(
+	r: ^Rig,
+	section_name: string,
+	frames: ^map[string]uint,
+) -> la.Vector2f32 {
 	followed_position: la.Vector2f32
 	section, ok := r.sections[section_name]
 	cur_section := section.connect_to_section
@@ -465,14 +470,27 @@ RigStatus :: struct {
 	cur_frame:          map[string]uint,
 	preserve_talk_time: f32,
 	z_layers:           []int,
+	z_textures:         map[int]rl.RenderTexture2D,
+	priorities:         []int,
+	final_texture:      rl.RenderTexture2D,
 }
 
 default_rig_status :: proc() -> RigStatus {
-	return RigStatus{false, {}, {}, 0.0, 0.0, {}, 0.0, {}}
+	return RigStatus{false, {}, {}, 0.0, 0.0, {}, 0.0, {}, {}, {}, rl.LoadRenderTexture(rl.GetScreenWidth(), rl.GetScreenHeight())}
+}
+
+reload_textures :: proc(rs: ^RigStatus) {
+	for key, texture in rs.z_textures {
+		rl.UnloadRenderTexture(texture)
+		rs.z_textures[key] = rl.LoadRenderTexture(rl.GetScreenWidth(), rl.GetScreenHeight())
+	}
+	rl.UnloadRenderTexture(rs.final_texture)
+	rs.final_texture = rl.LoadRenderTexture(rl.GetScreenWidth(), rl.GetScreenHeight())
 }
 
 prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
 	active_layers := make([dynamic]int)
+	priorities := make([dynamic]int)
 	for key, value in r.sections {
 		rs.frame_time[key] = 0.0
 		if len(value.frames) > 0 {
@@ -486,10 +504,20 @@ prepare_rig_status :: proc(rs: ^RigStatus, r: ^Rig) {
 		ok := slice.contains(active_layers[:], value.z_index)
 		if !ok {
 			append(&active_layers, value.z_index)
+			rs.z_textures[value.z_index] = rl.LoadRenderTexture(
+				rl.GetScreenWidth(),
+				rl.GetScreenHeight(),
+			)
+		}
+		ok = slice.contains(priorities[:], value.priority)
+		if !ok {
+			append(&priorities, value.priority)
 		}
 	}
 	slice.sort(active_layers[:])
+	slice.sort(priorities[:])
 	rs.z_layers = active_layers[:]
+	rs.priorities = priorities[:]
 }
 
 clear_rig_status :: proc(rs: ^RigStatus) {
@@ -497,6 +525,11 @@ clear_rig_status :: proc(rs: ^RigStatus) {
 	clear(&rs.frame_time)
 	clear(&rs.frame_direction)
 	delete(rs.z_layers)
+	delete(rs.priorities)
+	for _, texture in rs.z_textures {
+		rl.UnloadRenderTexture(texture)
+	}
+	clear(&rs.z_textures)
 }
 
 delete_rig_status :: proc(rs: ^RigStatus) {
@@ -504,6 +537,11 @@ delete_rig_status :: proc(rs: ^RigStatus) {
 	delete(rs.frame_time)
 	delete(rs.frame_direction)
 	delete(rs.z_layers)
+	delete(rs.priorities)
+	for _, texture in rs.z_textures {
+		rl.UnloadRenderTexture(texture)
+	}
+	delete(rs.z_textures)
 }
 
 load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
