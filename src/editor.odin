@@ -1,22 +1,91 @@
 package png_tuber
 
-import "core:slice"
 import "core:fmt"
 import la "core:math/linalg"
+import "core:slice"
 import "core:strings"
 import rl "vendor:raylib"
 
+MoveFramesAction :: struct {
+	frames: map[string]la.Vector2f32,
+}
+
+delete_move_frames_action :: proc(mfa: ^MoveFramesAction) {
+	delete(mfa.frames)
+}
+
+EditorAction :: union {
+	MoveFramesAction,
+}
+
+delete_editor_action :: proc(ea: ^EditorAction) {
+	switch _ in ea {
+	case MoveFramesAction:
+		delete_move_frames_action(&ea.(MoveFramesAction))
+	}
+}
+
+make_action :: proc(app: ^App, ea: EditorAction) {
+	app.editor_data.history_commit += 1
+	
+	for i := app.editor_data.history_commit - 1; int(i) < len(app.editor_data.history); i += 1{
+		delete_editor_action(&app.editor_data.history[i])
+	}
+
+	resize(&app.editor_data.history, app.editor_data.history_commit)
+
+	app.editor_data.history[app.editor_data.history_commit-1] = ea
+	switch _ in ea {
+	case MoveFramesAction:
+		for frame_name, transform in ea.(MoveFramesAction).frames {
+			frame := &app.loaded_rig.frames[frame_name]
+			frame.transform.position += transform
+		}
+	}
+}
+
+undo_action :: proc(app: ^App) {
+	if app.editor_data.history_commit > 0 {
+		app.editor_data.history_commit -= 1
+		action := app.editor_data.history[app.editor_data.history_commit]
+		switch _ in action {
+		case MoveFramesAction:
+			for frame_name, transform in action.(MoveFramesAction).frames {
+				frame := &app.loaded_rig.frames[frame_name]
+				frame.transform.position -= transform
+			}
+		}
+	}
+}
+
+redo_action :: proc(app: ^App){
+	if int(app.editor_data.history_commit) < len(app.editor_data.history) {
+		action := app.editor_data.history[app.editor_data.history_commit]
+		app.editor_data.history_commit += 1
+		switch _ in action {
+		case MoveFramesAction:
+			for frame_name, transform in action.(MoveFramesAction).frames {
+				frame := &app.loaded_rig.frames[frame_name]
+				frame.transform.position += transform
+			}
+		}
+	}
+} 
+
 EditorData :: struct {
-	selected_section: string,
-	cur_frame:        map[string]uint,
-	editor_border:    la.Vector2f32,
-	mouse_transform:  la.Vector2f32,
-	frame_lib_rect:   rl.Rectangle,
-	frame_lib_offset: f32,
-	sections_rect:    rl.Rectangle,
-	sections_offset:  f32,
-	is_holding:       bool,
-	used_frames:      [dynamic]string,
+	selected_sections: [dynamic]string,
+	cur_frame:         map[string]uint,
+	editor_border:     la.Vector2f32,
+	mouse_transform:   la.Vector2f32,
+	frame_lib_rect:    rl.Rectangle,
+	frame_lib_offset:  f32,
+	sections_rect:     rl.Rectangle,
+	sections_offset:   f32,
+	is_holding:        bool,
+	used_frames:       [dynamic]string,
+	frame_rect:        rl.Rectangle,
+	history:           [dynamic]EditorAction,
+	history_commit:    u32,
 }
 
 prepare_editor_data :: proc(r: ^Rig, ed: ^EditorData) {
@@ -29,23 +98,33 @@ prepare_editor_data :: proc(r: ^Rig, ed: ^EditorData) {
 	ed.sections_offset = 0
 	ed.editor_border = la.Vector2f32{150, 50}
 
-	for s_name, section in r.sections{
-		for f_name in section.frames{
+	for s_name, section in r.sections {
+		for f_name in section.frames {
 			append(&ed.used_frames, f_name)
 		}
 	}
 }
 
 clear_editor_data :: proc(ed: ^EditorData) {
-	ed.selected_section = ""
+	clear(&ed.selected_sections)
+	fmt.println("test")
 	clear(&ed.cur_frame)
 	clear(&ed.used_frames)
+	for &action in ed.history {
+		delete_editor_action(&action)
+	}
+	clear(&ed.history)
 	ed.mouse_transform = {0.0, 0.0}
 }
 
 delete_editor_data :: proc(ed: ^EditorData) {
+	delete(ed.selected_sections)
 	delete(ed.cur_frame)
 	delete(ed.used_frames)
+	for &action in ed.history {
+		delete_editor_action(&action)
+	}
+	delete(ed.history)
 }
 
 draw_edit_rect :: proc(rect: rl.Rectangle) {
@@ -99,7 +178,7 @@ draw_avilable_frames :: proc(app: ^App) -> (pressed_frame: string) {
 		image, ok := app.frame_lib.textures[frame.src]
 		text_color: rl.Color
 		image_color: rl.Color
-		if slice.contains(app.editor_data.used_frames[:], f_name){
+		if slice.contains(app.editor_data.used_frames[:], f_name) {
 			text_color = rl.RED
 			image_color = rl.GRAY
 		} else {
@@ -117,7 +196,7 @@ draw_avilable_frames :: proc(app: ^App) -> (pressed_frame: string) {
 				image_color,
 			)
 		}
-		
+
 
 		rl.DrawText(
 			strings.clone_to_cstring(f_name, context.temp_allocator),
@@ -158,7 +237,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 
 		visible_text: cstring
 		visible_color: rl.Color
-		if section.visible{
+		if section.visible {
 			visible_text = "0"
 			visible_color = rl.WHITE
 		} else {
@@ -166,8 +245,17 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			visible_color = rl.GRAY
 		}
 
-		visible_pressed := rl.GuiButton(rl.Rectangle {frame_rect.x + frame_rect.width, frame_rect.y, 40, 40}, "")
-		rl.DrawText(visible_text, i32(frame_rect.x + frame_rect.width + 10), i32(frame_rect.y + 2), 36, visible_color)
+		visible_pressed := rl.GuiButton(
+			rl.Rectangle{frame_rect.x + frame_rect.width, frame_rect.y, 40, 40},
+			"",
+		)
+		rl.DrawText(
+			visible_text,
+			i32(frame_rect.x + frame_rect.width + 10),
+			i32(frame_rect.y + 2),
+			36,
+			visible_color,
+		)
 
 		if len(section.frames) > 0 {
 
@@ -177,7 +265,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			frame, f_ok := app.loaded_rig.frames[cur_frame]
 
 			image, i_ok := app.frame_lib.textures[frame.src]
-			
+
 			if i_ok {
 				rl.DrawTexturePro(
 					image,
@@ -189,7 +277,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 				)
 			}
 			text_color: rl.Color
-			if s_name == app.editor_data.selected_section {
+			if slice.contains(app.editor_data.selected_sections[:], s_name) {
 				text_color = rl.RED
 			} else {
 				text_color = rl.BLACK
@@ -205,7 +293,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 			frame_rect.y += frame_rect.height
 		}
 
-		if visible_pressed{
+		if visible_pressed {
 			section.visible = !section.visible
 		}
 	}
@@ -213,22 +301,38 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 	return pressed_section
 }
 
-draw_frame_controll :: proc(app: ^App, pos: la.Vector2f32){
-	frame_id := app.editor_data.cur_frame[app.editor_data.selected_section]
+draw_frame_controll :: proc(app: ^App, pos: la.Vector2f32) {
+	if len(app.editor_data.selected_sections) == 0 {
+		return
+	}
+
+	frame_id := app.editor_data.cur_frame[app.editor_data.selected_sections[0]]
 	frame_id_str := fmt.tprint(frame_id)
-	rl.DrawText(strings.clone_to_cstring(frame_id_str, context.temp_allocator), i32(pos.x), i32(pos.y), 36, rl.BLACK)
+	rl.DrawText(
+		strings.clone_to_cstring(frame_id_str, context.temp_allocator),
+		i32(pos.x),
+		i32(pos.y),
+		36,
+		rl.BLACK,
+	)
 	increase := rl.GuiButton(rl.Rectangle{pos.x + 40, pos.y, 20, 16}, "+")
 	decrease := rl.GuiButton(rl.Rectangle{pos.x + 40, pos.y + 20, 20, 16}, "-")
 
-	if increase{
-		max_frames := uint(len(app.loaded_rig.sections[app.editor_data.selected_section].frames))
+	if increase {
+		max_frames := uint(
+			len(app.loaded_rig.sections[app.editor_data.selected_sections[0]].frames),
+		)
 
 		next_frame := (max_frames + frame_id + 1) % max_frames
-		app.editor_data.cur_frame[app.editor_data.selected_section] = (max_frames + frame_id + 1) % max_frames 
-	} else if decrease{
-		max_frames := uint(len(app.loaded_rig.sections[app.editor_data.selected_section].frames))
+		app.editor_data.cur_frame[app.editor_data.selected_sections[0]] =
+			(max_frames + frame_id + 1) % max_frames
+	} else if decrease {
+		max_frames := uint(
+			len(app.loaded_rig.sections[app.editor_data.selected_sections[0]].frames),
+		)
 
-		app.editor_data.cur_frame[app.editor_data.selected_section] = (max_frames + frame_id - 1) % max_frames
+		app.editor_data.cur_frame[app.editor_data.selected_sections[0]] =
+			(max_frames + frame_id - 1) % max_frames
 	}
 }
 
