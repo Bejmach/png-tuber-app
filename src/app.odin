@@ -332,7 +332,9 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 			editor_anchor_offset :=
 				la.Vector2f32{1.0, 1.0} - math_anchor_position(1.0, 1.0, section.transform_anchor)
 
-			position_anchor += editor_anchor_offset * app.editor_data.editor_border
+			parent_transform := get_section_follow_position(app.loaded_rig, section_name, &app.editor_data.cur_frame)
+
+			position_anchor += editor_anchor_offset * app.editor_data.editor_border + parent_transform
 
 			app.editor_data.frame_rect = rl.Rectangle {
 				frame.transform.position.x + position_anchor.x + app.editor_data.mouse_transform.x,
@@ -375,7 +377,9 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 					la.Vector2f32{1.0, 1.0} -
 					math_anchor_position(1.0, 1.0, section.transform_anchor)
 
-				position_anchor += editor_anchor_offset * app.editor_data.editor_border
+				parent_transform := get_section_follow_position(app.loaded_rig, section_name, &app.editor_data.cur_frame)
+
+				position_anchor += editor_anchor_offset * app.editor_data.editor_border + parent_transform
 
 				f_min_x :=
 					frame.transform.position.x +
@@ -419,6 +423,19 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 
 		action: MoveFramesAction = MoveFramesAction{}
 		for section_name in app.editor_data.selected_sections {
+			is_child := false
+
+			for checked_section in app.editor_data.selected_sections{
+				if is_section_following_section(app.loaded_rig, section_name, checked_section){
+					is_child = true
+					break
+				}
+			}
+
+			if is_child{
+				continue
+			}
+
 			if rl.IsKeyDown(.LEFT_CONTROL) {
 				section := app.loaded_rig.sections[section_name]
 				for frame_name in section.frames {
