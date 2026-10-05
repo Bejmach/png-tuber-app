@@ -227,6 +227,67 @@ delete_frame :: proc(f: ^Frame) {
 	delete(f.src)
 }
 
+get_frame_anchor_position :: proc(
+	app: ^App,
+	section_name: string,
+	frame_id: u32,
+	offset := la.Vector2f32{0, 0},
+) -> (
+	pos: la.Vector2f32,
+	ok: bool,
+) {
+	if app.loaded_rig == nil {
+		return {0, 0}, false
+	}
+
+	section, s_ok := app.loaded_rig.sections[section_name]
+
+	if !s_ok || int(frame_id) >= len(section.frames){
+		return {0, 0}, false
+	}
+
+	frame_name := section.frames[frame_id]
+
+	frame, f_ok := app.loaded_rig.frames[frame_name]
+
+	if !f_ok {
+		return {0, 0}, false
+	}
+
+	position_anchor :=
+		math_anchor_position(
+			f32(rl.GetScreenWidth()),
+			f32(rl.GetScreenHeight()),
+			section.window_anchor,
+		) -
+		math_anchor_position(
+			frame.transform.width,
+			frame.transform.height,
+			section.transform_anchor,
+		) +
+		section.window_anchor_offset
+
+	followed_position := get_section_follow_position(
+		app.loaded_rig,
+		app.editor_data.selected_sections[0],
+		&app.editor_data.cur_frame,
+	)
+
+	transform_anchor_position :=
+		position_anchor +
+		math_anchor_position(
+			frame.transform.width,
+			frame.transform.height,
+			section.transform_anchor,
+		) +
+		section.transform_anchor_offset +
+		frame.transform.position +
+		followed_position +
+		offset
+
+	return transform_anchor_position, true
+}
+
 Transformer :: struct {
 	lerp_data:     LerpData, //
 	position:      la.Vector2f32,
@@ -476,7 +537,19 @@ RigStatus :: struct {
 }
 
 default_rig_status :: proc() -> RigStatus {
-	return RigStatus{false, {}, {}, 0.0, 0.0, {}, 0.0, {}, {}, {}, rl.LoadRenderTexture(rl.GetScreenWidth(), rl.GetScreenHeight())}
+	return RigStatus {
+		false,
+		{},
+		{},
+		0.0,
+		0.0,
+		{},
+		0.0,
+		{},
+		{},
+		{},
+		rl.LoadRenderTexture(rl.GetScreenWidth(), rl.GetScreenHeight()),
+	}
 }
 
 reload_textures :: proc(rs: ^RigStatus) {

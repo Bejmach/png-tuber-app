@@ -27,14 +27,14 @@ delete_editor_action :: proc(ea: ^EditorAction) {
 
 make_action :: proc(app: ^App, ea: EditorAction) {
 	app.editor_data.history_commit += 1
-	
-	for i := app.editor_data.history_commit - 1; int(i) < len(app.editor_data.history); i += 1{
+
+	for i := app.editor_data.history_commit - 1; int(i) < len(app.editor_data.history); i += 1 {
 		delete_editor_action(&app.editor_data.history[i])
 	}
 
 	resize(&app.editor_data.history, app.editor_data.history_commit)
 
-	app.editor_data.history[app.editor_data.history_commit-1] = ea
+	app.editor_data.history[app.editor_data.history_commit - 1] = ea
 	switch _ in ea {
 	case MoveFramesAction:
 		for frame_name, transform in ea.(MoveFramesAction).frames {
@@ -58,7 +58,7 @@ undo_action :: proc(app: ^App) {
 	}
 }
 
-redo_action :: proc(app: ^App){
+redo_action :: proc(app: ^App) {
 	if int(app.editor_data.history_commit) < len(app.editor_data.history) {
 		action := app.editor_data.history[app.editor_data.history_commit]
 		app.editor_data.history_commit += 1
@@ -70,7 +70,7 @@ redo_action :: proc(app: ^App){
 			}
 		}
 	}
-} 
+}
 
 EditorData :: struct {
 	selected_sections: [dynamic]string,
@@ -81,7 +81,8 @@ EditorData :: struct {
 	frame_lib_offset:  f32,
 	sections_rect:     rl.Rectangle,
 	sections_offset:   f32,
-	is_holding:        bool,
+	is_frame_moving:   bool,
+	is_anchor_moving:  bool,
 	used_frames:       [dynamic]string,
 	frame_rect:        rl.Rectangle,
 	history:           [dynamic]EditorAction,

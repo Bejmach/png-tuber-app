@@ -332,15 +332,25 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 			editor_anchor_offset :=
 				la.Vector2f32{1.0, 1.0} - math_anchor_position(1.0, 1.0, section.transform_anchor)
 
-			parent_transform := get_section_follow_position(app.loaded_rig, section_name, &app.editor_data.cur_frame)
+			parent_transform := get_section_follow_position(
+				app.loaded_rig,
+				section_name,
+				&app.editor_data.cur_frame,
+			)
 
-			position_anchor += editor_anchor_offset * app.editor_data.editor_border + parent_transform
+			position_anchor +=
+				editor_anchor_offset * app.editor_data.editor_border + parent_transform
 
 			app.editor_data.frame_rect = rl.Rectangle {
-				frame.transform.position.x + position_anchor.x + app.editor_data.mouse_transform.x,
-				frame.transform.position.y + position_anchor.y + app.editor_data.mouse_transform.y,
+				frame.transform.position.x + position_anchor.x,
+				frame.transform.position.y + position_anchor.y,
 				frame.transform.width,
 				frame.transform.height,
+			}
+
+			if app.editor_data.is_frame_moving {
+				app.editor_data.frame_rect.x += app.editor_data.mouse_transform.x
+				app.editor_data.frame_rect.y += app.editor_data.mouse_transform.y
 			}
 		}
 	} else if len(app.editor_data.selected_sections) > 1 {
@@ -377,20 +387,24 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 					la.Vector2f32{1.0, 1.0} -
 					math_anchor_position(1.0, 1.0, section.transform_anchor)
 
-				parent_transform := get_section_follow_position(app.loaded_rig, section_name, &app.editor_data.cur_frame)
+				parent_transform := get_section_follow_position(
+					app.loaded_rig,
+					section_name,
+					&app.editor_data.cur_frame,
+				)
 
-				position_anchor += editor_anchor_offset * app.editor_data.editor_border + parent_transform
+				position_anchor +=
+					editor_anchor_offset * app.editor_data.editor_border + parent_transform
 
-				f_min_x :=
-					frame.transform.position.x +
-					position_anchor.x +
-					app.editor_data.mouse_transform.x
-				f_min_y :=
-					frame.transform.position.y +
-					position_anchor.y +
-					app.editor_data.mouse_transform.y
+				f_min_x := frame.transform.position.x + position_anchor.x
+				f_min_y := frame.transform.position.y + position_anchor.y
 				f_max_x := f_min_x + frame.transform.width
 				f_max_y := f_min_y + frame.transform.height
+
+				if app.editor_data.is_frame_moving {
+					f_min_x += app.editor_data.mouse_transform.x
+					f_min_y += app.editor_data.mouse_transform.y
+				}
 
 				if f_min_x < min_x {min_x = f_min_x}
 				if f_min_y < min_y {min_y = f_min_y}
@@ -405,34 +419,50 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 	if rl.IsMouseButtonPressed(.LEFT) &&
 	   f_ok &&
 	   mouse_position.x > app.editor_data.editor_border.x &&
-	   mouse_position.y > app.editor_data.editor_border.y {
+	   mouse_position.y > app.editor_data.editor_border.y &&
+	   !app.editor_data.is_anchor_moving {
 
 		if is_position_in_rect(mouse_position, app.editor_data.frame_rect) {
-			app.editor_data.is_holding = true
+			app.editor_data.is_frame_moving = true
 		}
 	}
 
-	if app.editor_data.is_holding {
+	if rl.IsMouseButtonPressed(.RIGHT) &&
+	   f_ok &&
+	   mouse_position.x > app.editor_data.editor_border.x &&
+	   mouse_position.y > app.editor_data.editor_border.y &&
+	   !app.editor_data.is_frame_moving &&
+	   len(app.editor_data.selected_sections) == 1 {
+
+		if is_position_in_rect(mouse_position, app.editor_data.frame_rect) {
+			app.editor_data.is_anchor_moving = true
+		}
+	}
+
+	if app.editor_data.is_frame_moving {
 		app.editor_data.mouse_transform += rl.GetMouseDelta()
+	}
+	if app.editor_data.is_anchor_moving {
+		app.editor_data.mouse_transform = rl.GetMousePosition()
 	}
 
 	if (rl.IsMouseButtonReleased(.LEFT) ||
 		   mouse_position.x <= app.editor_data.editor_border.x ||
 		   mouse_position.y <= app.editor_data.editor_border.y) &&
-	   app.editor_data.is_holding {
+	   app.editor_data.is_frame_moving {
 
 		action: MoveFramesAction = MoveFramesAction{}
 		for section_name in app.editor_data.selected_sections {
 			is_child := false
 
-			for checked_section in app.editor_data.selected_sections{
-				if is_section_following_section(app.loaded_rig, section_name, checked_section){
+			for checked_section in app.editor_data.selected_sections {
+				if is_section_following_section(app.loaded_rig, section_name, checked_section) {
 					is_child = true
 					break
 				}
 			}
 
-			if is_child{
+			if is_child {
 				continue
 			}
 
@@ -454,7 +484,45 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 		}
 		make_action(app, action)
 		app.editor_data.mouse_transform = {0.0, 0.0}
-		app.editor_data.is_holding = false
+		app.editor_data.is_frame_moving = false
+	}
+
+	if rl.IsMouseButtonReleased(.RIGHT) &&
+	   app.editor_data.is_anchor_moving &&
+	   len(app.editor_data.selected_sections) == 1 {
+		frame, ok := get_frame(
+			app.loaded_rig,
+			app.editor_data.selected_sections[0],
+			app.editor_data.cur_frame[app.editor_data.selected_sections[0]],
+		)
+
+		if ok {
+			section_name := app.editor_data.selected_sections[0]
+			section := &app.loaded_rig.sections[section_name]
+
+			editor_anchor_offset :=
+				la.Vector2f32{1.0, 1.0} - math_anchor_position(1.0, 1.0, section.transform_anchor)
+
+			offset :=
+				editor_anchor_offset * app.editor_data.editor_border
+
+			cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_sections[0]]
+
+			transform_anchor_position, ok := get_frame_anchor_position(
+				app,
+				app.editor_data.selected_sections[0],
+				u32(cur_frame_id),
+				offset,
+			)
+
+			if ok {
+				difference := app.editor_data.mouse_transform - transform_anchor_position
+				section.transform_anchor_offset += difference
+			}
+		}
+
+		app.editor_data.mouse_transform = {0.0, 0.0}
+		app.editor_data.is_anchor_moving = false
 	}
 
 	mouse_wheel := rl.GetMouseWheelMove()
@@ -759,8 +827,9 @@ draw_editor :: proc(app: ^App, delta: f32) {
 					is_section_following |
 					is_section_following_section(app.loaded_rig, section_name, selected_section)
 			}
-			if slice.contains(app.editor_data.selected_sections[:], section_name) ||
-			   (is_section_following) {
+			if app.editor_data.is_frame_moving &&
+			   (slice.contains(app.editor_data.selected_sections[:], section_name) ||
+					   (is_section_following)) {
 				frame_position += app.editor_data.mouse_transform
 			}
 
@@ -849,66 +918,63 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			)
 		}
 
-		if len(app.editor_data.selected_sections) > 0 {
+		if len(app.editor_data.selected_sections) == 1 {
 			selected_section, s_ok := app.loaded_rig.sections[app.editor_data.selected_sections[0]]
 			if s_ok {
-				followed_position := get_section_follow_position(
-					app.loaded_rig,
-					app.editor_data.selected_sections[0],
-					&app.editor_data.cur_frame,
-				)
-
 				if len(app.loaded_rig.frames) < 0 {
 					return
 				}
-				cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_sections[0]]
+				if app.editor_data.is_anchor_moving {
+					transform_anchor_position := app.editor_data.mouse_transform
 
-				cur_frame := app.loaded_rig.frames[selected_section.frames[cur_frame_id]]
-				position_anchor :=
-					math_anchor_position(
-						f32(rl.GetScreenWidth()),
-						f32(rl.GetScreenHeight()),
-						selected_section.window_anchor,
-					) -
-					math_anchor_position(
-						cur_frame.transform.width,
-						cur_frame.transform.height,
-						selected_section.transform_anchor,
-					) +
-					selected_section.window_anchor_offset
+					rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
+					rl.DrawLineEx(
+						transform_anchor_position.xy - {10, 10},
+						transform_anchor_position.xy + {10, 10},
+						1.0,
+						rl.BLUE,
+					)
+					rl.DrawLineEx(
+						transform_anchor_position.xy - {10, -10},
+						transform_anchor_position.xy + {10, -10},
+						1.0,
+						rl.BLUE,
+					)
+				} else {
 
-				editor_anchor_offset :=
-					la.Vector2f32{1.0, 1.0} -
-					math_anchor_position(1.0, 1.0, selected_section.transform_anchor)
+					editor_anchor_offset :=
+						la.Vector2f32{1.0, 1.0} -
+						math_anchor_position(1.0, 1.0, selected_section.transform_anchor)
 
-				position_anchor +=
-					editor_anchor_offset * app.editor_data.editor_border + followed_position
+					offset :=
+						editor_anchor_offset * app.editor_data.editor_border +
+						app.editor_data.mouse_transform
 
-				transform_anchor_position :=
-					position_anchor +
-					math_anchor_position(
-						cur_frame.transform.width,
-						cur_frame.transform.height,
-						selected_section.transform_anchor,
-					) +
-					selected_section.transform_anchor_offset +
-					cur_frame.transform.position +
-					app.editor_data.mouse_transform
+					cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_sections[0]]
 
+					transform_anchor_position, ok := get_frame_anchor_position(
+						app,
+						app.editor_data.selected_sections[0],
+						u32(cur_frame_id),
+						offset,
+					)
 
-				rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
-				rl.DrawLineEx(
-					transform_anchor_position.xy - {10, 10},
-					transform_anchor_position.xy + {10, 10},
-					1.0,
-					rl.BLUE,
-				)
-				rl.DrawLineEx(
-					transform_anchor_position.xy - {10, -10},
-					transform_anchor_position.xy + {10, -10},
-					1.0,
-					rl.BLUE,
-				)
+					if ok {
+						rl.DrawCircleLinesV(transform_anchor_position.xy, 5.0, rl.BLUE)
+						rl.DrawLineEx(
+							transform_anchor_position.xy - {10, 10},
+							transform_anchor_position.xy + {10, 10},
+							1.0,
+							rl.BLUE,
+						)
+						rl.DrawLineEx(
+							transform_anchor_position.xy - {10, -10},
+							transform_anchor_position.xy + {10, -10},
+							1.0,
+							rl.BLUE,
+						)
+					}
+				}
 
 
 			}
