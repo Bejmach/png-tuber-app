@@ -9,11 +9,13 @@ import rl "vendor:raylib"
 Settings :: struct {
 	background_color: rl.Color,
 	rig_paths:        []string,
+	scroll_speed:     f32,
 }
 
-default_settings :: proc() -> ^Settings{
+default_settings :: proc() -> ^Settings {
 	s: ^Settings = new(Settings)
 	s.background_color = rl.Color{0, 255, 0, 255}
+	s.scroll_speed = 15.0
 
 	return s
 }
@@ -41,7 +43,7 @@ load_settings :: proc(path: string) -> (settings: ^Settings, ok: bool) {
 	if unmarshal_err == nil {
 		return settings, true
 	}
-	
+
 	delete_settings(settings)
 	fmt.eprintln("Failed to unmarshal JSON", unmarshal_err)
 

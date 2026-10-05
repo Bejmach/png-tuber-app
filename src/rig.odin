@@ -215,12 +215,14 @@ get_section_follow_position :: proc(
 }
 
 Frame :: struct {
-	src:            string,
-	time:           f32,
-	transform:      Transformer,
-	rand_transform: RandTransformer,
-	overwrite_tint: bool, // Prevents having default tint as black with alpha 0
-	tint:           rl.Color,
+	src:             string,
+	time:            f32,
+	transform:       Transformer,
+	rand_transform:  RandTransformer,
+	flip_horizontal: bool,
+	flip_vertical:   bool,
+	overwrite_tint:  bool, // Prevents having default tint as black with alpha 0
+	tint:            rl.Color,
 }
 
 delete_frame :: proc(f: ^Frame) {
@@ -242,7 +244,7 @@ get_frame_anchor_position :: proc(
 
 	section, s_ok := app.loaded_rig.sections[section_name]
 
-	if !s_ok || int(frame_id) >= len(section.frames){
+	if !s_ok || int(frame_id) >= len(section.frames) {
 		return {0, 0}, false
 	}
 
@@ -646,7 +648,9 @@ load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
 	rig = new(Rig)
 	unmarshal_err := json.unmarshal(data, rig)
 	if unmarshal_err == nil {
+		delete(rig.rig_path)
 		rig.rig_path = directory_path
+
 		return rig, true
 	} else {
 		delete_rig(rig)
@@ -654,6 +658,16 @@ load_rig :: proc(directory_path: string) -> (rig: ^Rig, ok: bool) {
 	}
 
 	return nil, false
+}
+
+fix_rig_frames :: proc(r: ^Rig, textures: ^map[string]rl.Texture2D) {
+	for frame_name, &frame in r.frames {
+		if frame.transform.width == 0.0 && frame.transform.height == 0.0 {
+			texture, ok := textures[frame.src]
+			frame.transform.width = f32(texture.width)
+			frame.transform.height = f32(texture.height)
+		}
+	}
 }
 
 save_rig :: proc(r: ^Rig, directory_path: string) {
@@ -671,6 +685,65 @@ save_rig :: proc(r: ^Rig, directory_path: string) {
 	}
 
 	data, data_err := json.marshal(r^, {pretty = true, use_enum_names = true})
+
+	defer {
+		if data_err == nil{
+			delete(data)
+		}
+	}
+
+	if data_err != nil {
+		fmt.eprintln("Unable to marshal json:", data_err)
+		return
+	}
+
+	write_err := os.write_entire_file(path, data)
+	if write_err != nil {
+		fmt.eprintln("Unable to write file:", write_err)
+		return
+	}
+}
+
+incremental_save_rig :: proc(r: ^Rig, directory_path: string) {
+	file_name: string
+	path: string
+	path_err: runtime.Allocator_Error
+
+	i := 0
+
+	for {
+		file_name = fmt.aprintf("%s%i%s", "rig", i, ".json")
+		path, path_err = filepath.join({directory_path, file_name})
+
+		if path_err != nil{
+			delete(file_name)
+			continue
+		}
+
+		if !os.exists(path){
+			break
+		}
+
+		delete(file_name)
+		delete(path)
+
+		i += 1
+	}
+
+	defer {
+		if path_err == nil {
+			delete(path)
+		}
+		delete(file_name)
+	}
+
+	data, data_err := json.marshal(r^, {pretty = true, use_enum_names = true})
+
+	defer {
+		if data_err == nil{
+			delete(data)
+		}
+	}
 
 	if data_err != nil {
 		fmt.eprintln("Unable to marshal json:", data_err)

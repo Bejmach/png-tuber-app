@@ -93,6 +93,7 @@ delete_app :: proc(app: ^App) {
 AppCommand :: enum {
 	Load_Rig,
 	Save_Rig,
+	Increment_Save_Rig,
 	Change_Scene,
 	Rig_Command,
 	Edit_Select_Section,
@@ -107,6 +108,8 @@ app_command :: proc(app: ^App, command: AppCommand, payload: string) {
 		app_load_rig(app, payload)
 	case .Save_Rig:
 		app_save_rig(app, payload)
+	case .Increment_Save_Rig:
+		app_incremental_save(app, payload)
 	case .Change_Scene:
 		app_change_scene(app, payload)
 	case .Rig_Command:
@@ -139,6 +142,7 @@ app_load_rig :: proc(app: ^App, path: string) {
 	for section_name, _ in app.loaded_rig.sections {
 		app.rig_data.sections[section_name] = AppSectionData{}
 	}
+	fix_rig_frames(app.loaded_rig, &app.frame_lib.textures)
 	#partial switch app.scene {
 	case .Png_Tuber:
 		rig_rect := get_rig_rect(app.loaded_rig)
@@ -158,6 +162,12 @@ app_load_rig :: proc(app: ^App, path: string) {
 app_save_rig :: proc(app: ^App, path: string) {
 	if app.loaded_rig != nil {
 		save_rig(app.loaded_rig, path)
+	}
+}
+
+app_incremental_save :: proc(app: ^App, path: string) {
+	if app.loaded_rig != nil {
+		incremental_save_rig(app.loaded_rig, path)
 	}
 }
 
@@ -416,14 +426,17 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 		app.editor_data.frame_rect = {min_x, min_y, max_x - min_x, max_y - min_y}
 	}
 
-	if rl.IsMouseButtonPressed(.LEFT) &&
-	   f_ok &&
-	   mouse_position.x > app.editor_data.editor_border.x &&
-	   mouse_position.y > app.editor_data.editor_border.y &&
-	   !app.editor_data.is_anchor_moving {
+	if rl.IsMouseButtonPressed(.LEFT) {
+		if f_ok &&
+		   mouse_position.x > app.editor_data.editor_border.x &&
+		   mouse_position.y > app.editor_data.editor_border.y &&
+		   !app.editor_data.is_anchor_moving {
 
-		if is_position_in_rect(mouse_position, app.editor_data.frame_rect) {
-			app.editor_data.is_frame_moving = true
+			if is_position_in_rect(mouse_position, app.editor_data.frame_rect) {
+				app.editor_data.is_frame_moving = true
+			} else {
+				clear(&app.editor_data.selected_sections)
+			}
 		}
 	}
 
@@ -503,8 +516,7 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 			editor_anchor_offset :=
 				la.Vector2f32{1.0, 1.0} - math_anchor_position(1.0, 1.0, section.transform_anchor)
 
-			offset :=
-				editor_anchor_offset * app.editor_data.editor_border
+			offset := editor_anchor_offset * app.editor_data.editor_border
 
 			cur_frame_id := app.editor_data.cur_frame[app.editor_data.selected_sections[0]]
 
@@ -529,14 +541,14 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 	if mouse_wheel != 0 {
 		if is_position_in_rect(mouse_position, app.editor_data.frame_lib_rect) {
 			app.editor_data.frame_lib_offset = math.max(
-				app.editor_data.frame_lib_offset - mouse_wheel * 5.0,
+				app.editor_data.frame_lib_offset - mouse_wheel * app.settings.scroll_speed,
 				0,
 			)
 		}
 
 		if is_position_in_rect(mouse_position, app.editor_data.sections_rect) {
 			app.editor_data.sections_offset = math.max(
-				app.editor_data.sections_offset - mouse_wheel * 5.0,
+				app.editor_data.sections_offset - mouse_wheel * app.settings.scroll_speed,
 				0,
 			)
 		}
@@ -547,6 +559,12 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 			undo_action(app)
 		} else if rl.IsKeyPressed(.Y) {
 			redo_action(app)
+		}
+
+		if rl.IsKeyDown(.LEFT_SHIFT) {
+			if rl.IsKeyPressed(.S) {
+				app_incremental_save(app, app.loaded_rig.rig_path)
+			}
 		}
 	}
 }
@@ -705,10 +723,21 @@ draw_png_tuber :: proc(app: ^App, delta: f32) {
 			if texture_ok {
 				z_texture := app.rig_status.z_textures[section.z_index]
 
+
+				source_width := f32(texture.width)
+				source_height := f32(texture.height)
+
+				if cur_frame.flip_horizontal {
+					source_width *= -1
+				}
+				if cur_frame.flip_vertical {
+					source_width *= -1
+				}
+
 				rl.BeginTextureMode(z_texture)
 				rl.DrawTexturePro(
 					texture,
-					{0, 0, f32(texture.width), f32(texture.height)},
+					{0, 0, source_width, source_height},
 					{
 						min_x + transform_anchor.x,
 						min_y + transform_anchor.y,
@@ -886,10 +915,20 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			if texture_ok {
 				z_texture := app.rig_status.z_textures[section.z_index]
 
+				source_width := f32(texture.width)
+				source_height := f32(texture.height)
+
+				if cur_frame.flip_horizontal {
+					source_width *= -1
+				}
+				if cur_frame.flip_vertical {
+					source_width *= -1
+				}
+
 				rl.BeginTextureMode(z_texture)
 				rl.DrawTexturePro(
 					texture,
-					{0, 0, f32(texture.width), f32(texture.height)},
+					{0, 0, source_width, source_height},
 					{
 						min_x + transform_anchor.x,
 						min_y + transform_anchor.y,
@@ -984,7 +1023,9 @@ draw_editor :: proc(app: ^App, delta: f32) {
 			}
 		}
 
-		draw_edit_rect(app.editor_data.frame_rect)
+		if len(app.editor_data.selected_sections) != 0 {
+			draw_edit_rect(app.editor_data.frame_rect)
+		}
 
 		pressed_frame := draw_avilable_frames(app)
 		pressed_section := draw_sections(app)
@@ -1160,6 +1201,19 @@ get_section_transform :: proc(app: ^App, section_name: string, delta: f32) -> Tr
 		cur_frame_transform.lerp_data,
 	)
 
+	if len(section.connect_to_section) != 0 {
+		conn_section_ok := section.connect_to_section in app.loaded_rig.sections
+		if conn_section_ok {
+			connected_section, ok := app.rig_data.sections[section.connect_to_section]
+			if ok {
+				cur_transform.position += connected_section.cur_transformer.position
+				cur_transform.position += connected_section.cur_volume_transformer.position
+				cur_transform.position += connected_section.cur_transformer.rotation
+				cur_transform.position += connected_section.cur_volume_transformer.rotation
+			}
+		}
+	}
+
 	lerp_transformers(
 		&rig_data_section.cur_transformer,
 		&cur_transform,
@@ -1174,21 +1228,6 @@ get_section_transform :: proc(app: ^App, section_name: string, delta: f32) -> Tr
 		&rig_data_section.cur_transformer,
 		&rig_data_section.cur_volume_transformer,
 	)
-
-	if len(section.connect_to_section) != 0 {
-		conn_section_ok := section.connect_to_section in app.loaded_rig.sections
-		if conn_section_ok {
-			connected_section, ok := app.rig_data.sections[section.connect_to_section]
-			if ok {
-				cur_transform.position +=
-					connected_section.cur_transformer.position +
-					connected_section.cur_volume_transformer.position
-				cur_transform.rotation +=
-					connected_section.cur_transformer.rotation +
-					connected_section.cur_volume_transformer.rotation
-			}
-		}
-	}
 
 	cur_total_velocity := div_transformer(
 		subtract_transformers(&cur_transform, &prev_transform),
@@ -1321,7 +1360,8 @@ app_run :: proc() {
 
 
 	//app_command(app, .Load_Rig, "./data/example")
-	app_command(app, .Load_Rig, "./data/multi_section")
+	//app_command(app, .Load_Rig, "./data/multi_section")
+	app_command(app, .Load_Rig, "./data/anime_test")
 	//app_command(app, .Change_Scene, "Png_Tuber")
 	//app_command(app, .Edit_Select_Section, "face")
 

@@ -108,7 +108,6 @@ prepare_editor_data :: proc(r: ^Rig, ed: ^EditorData) {
 
 clear_editor_data :: proc(ed: ^EditorData) {
 	clear(&ed.selected_sections)
-	fmt.println("test")
 	clear(&ed.cur_frame)
 	clear(&ed.used_frames)
 	for &action in ed.history {
