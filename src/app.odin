@@ -14,6 +14,7 @@ import "core:sync"
 import "core:thread"
 import ma "vendor:miniaudio"
 import rl "vendor:raylib"
+import "rlui"
 
 PORT := 9001
 command_mutex: sync.Mutex
@@ -946,6 +947,26 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 	rl.BeginTextureMode(app.rig_status.final_texture)
 
+	bar_box: rlui.Box
+
+	bar_box.width = 0.9
+	bar_box.is_parent_relative_width = true
+	bar_box.h_anchor = .Left
+	bar_box.height = 30.0
+
+	bar_widget := rlui.Widget(bar_box)
+
+	button: rlui.Button
+	button.parent = &bar_widget
+
+	button.width = 150
+	button.height = 1.0
+	button.is_parent_relative_height = true
+	button.h_anchor = .Center
+
+	rlui.box_draw(&bar_box, rl.BLACK)
+	fmt.println(rlui.button_draw(&button, rl.GRAY, rl.WHITE, rl.BLACK))
+
 	{
 		for z_index in app.rig_status.z_layers {
 			texture := app.rig_status.z_textures[z_index].texture
@@ -1031,6 +1052,10 @@ draw_editor :: proc(app: ^App, delta: f32) {
 		pressed_section := draw_sections(app)
 		if len(pressed_section) != 0 {
 			app_edit_select_section(app, pressed_section)
+		}
+
+		if len(app.editor_data.selected_sections) > 0 {
+			draw_cur_section_transform(app, app.editor_data.selected_sections[0], {10, 300})
 		}
 
 		rl.DrawRectangleRec(

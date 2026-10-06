@@ -1,6 +1,7 @@
 package png_tuber
 
 import "core:fmt"
+import "core:math/bits"
 import la "core:math/linalg"
 import "core:slice"
 import "core:strings"
@@ -80,6 +81,7 @@ EditorData :: struct {
 	frame_lib_rect:    rl.Rectangle,
 	frame_lib_offset:  f32,
 	sections_rect:     rl.Rectangle,
+	list_item_height:  f32,
 	sections_offset:   f32,
 	is_frame_moving:   bool,
 	is_anchor_moving:  bool,
@@ -98,6 +100,7 @@ prepare_editor_data :: proc(r: ^Rig, ed: ^EditorData) {
 	ed.sections_rect = rl.Rectangle{0, 190, 150, 100}
 	ed.sections_offset = 0
 	ed.editor_border = la.Vector2f32{150, 50}
+	ed.list_item_height = 20.0
 
 	for s_name, section in r.sections {
 		for f_name in section.frames {
@@ -221,7 +224,7 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 		rect.x + 2.0,
 		rect.y - app.editor_data.sections_offset,
 		rect.width - 42,
-		40,
+		app.editor_data.list_item_height,
 	}
 	for s_name, &section in app.loaded_rig.sections {
 		if frame_rect.y + frame_rect.height < rect.y || frame_rect.y > rect.y + rect.height {
@@ -246,14 +249,19 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 		}
 
 		visible_pressed := rl.GuiButton(
-			rl.Rectangle{frame_rect.x + frame_rect.width, frame_rect.y, 40, 40},
+			rl.Rectangle {
+				frame_rect.x + frame_rect.width,
+				frame_rect.y,
+				40,
+				app.editor_data.list_item_height,
+			},
 			"",
 		)
 		rl.DrawText(
 			visible_text,
 			i32(frame_rect.x + frame_rect.width + 10),
 			i32(frame_rect.y + 2),
-			36,
+			i32(app.editor_data.list_item_height - 2),
 			visible_color,
 		)
 
@@ -270,7 +278,12 @@ draw_sections :: proc(app: ^App) -> (pressed_section: string) {
 				rl.DrawTexturePro(
 					image,
 					rl.Rectangle{0, 0, f32(image.width), f32(image.height)},
-					rl.Rectangle{frame_rect.x + 2, frame_rect.y + 2, 36, 36},
+					rl.Rectangle {
+						frame_rect.x + 2,
+						frame_rect.y + 2,
+						app.editor_data.list_item_height - 2,
+						app.editor_data.list_item_height - 2,
+					},
 					{0, 0},
 					0,
 					visible_color,
@@ -334,6 +347,31 @@ draw_frame_controll :: proc(app: ^App, pos: la.Vector2f32) {
 		app.editor_data.cur_frame[app.editor_data.selected_sections[0]] =
 			(max_frames + frame_id - 1) % max_frames
 	}
+}
+
+draw_cur_section_transform :: proc(app: ^App, section_name: string, offset: la.Vector2f32) {
+	frame, ok := get_frame(app.loaded_rig, section_name, app.editor_data.cur_frame[section_name])
+	if !ok {
+		return
+	}
+	x_rect := rl.Rectangle{offset.x, offset.y, 60, app.editor_data.list_item_height}
+	pos_x := frame.transform.position.x
+	if app.editor_data.is_frame_moving{
+		pos_x += app.editor_data.mouse_transform.x
+	}
+	x_text := fmt.tprintf("%f", pos_x)
+	rl.DrawRectangleRec(x_rect, rl.WHITE)
+	rl.DrawText(strings.clone_to_cstring(x_text, context.temp_allocator), i32(offset.x), i32(offset.y+2), 16, rl.BLACK)
+
+	y_rect := rl.Rectangle{offset.x + 70, offset.y, 60, app.editor_data.list_item_height}
+	pos_y := frame.transform.position.y
+	if app.editor_data.is_frame_moving{
+		pos_y += app.editor_data.mouse_transform.y
+	}
+	y_text := fmt.tprintf("%f", pos_y)
+	rl.DrawRectangleRec(y_rect, rl.WHITE)
+	rl.DrawText(strings.clone_to_cstring(y_text, context.temp_allocator), i32(offset.x + 70), i32(offset.y+2), 16, rl.BLACK)
+	
 }
 
 draw_selected_section :: proc(app: ^App) {
