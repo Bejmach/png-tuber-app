@@ -7,87 +7,153 @@ Widget :: union {
 	Box,
 	Button,
 	Text,
+	Row,
+	Column,
+}
+
+get_rect :: proc(w: ^Widget, parent_rect: rl.Rectangle) -> rl.Rectangle {
+	x := get_x(w, parent_rect)
+	y := get_y(w, parent_rect)
+	width := get_width(w, parent_rect)
+	height := get_height(w, parent_rect)
+
+	return rl.Rectangle{x, y, width, height}
 }
 
 get_x :: proc(w: ^Widget, parent_rect: rl.Rectangle) -> f32 {
-	switch _ in w {
+	switch &v in w {
 	case Rectangle:
-		return rectangle_x(&w.(Rectangle), parent_rect)
+		return rectangle_x(&v, parent_rect)
 	case Box:
-		return rectangle_x(&w.(Box), parent_rect)
+		return rectangle_x(&v, parent_rect)
 	case Button:
-		return rectangle_x(&w.(Button), parent_rect)
+		return rectangle_x(&v, parent_rect)
 	case Text:
-		return text_x(&w.(Text), parent_rect)
+		return text_x(&v, parent_rect)
+	case Row:
+		return row_x(&v, parent_rect)
+	case Column:
+		return column_x(&v, parent_rect)
 	}
 
 	return 0.0
 }
 
-get_y :: proc(w: ^Widget, parent_rect: rl.Rectangle) -> f32{
-	switch _ in w {
+get_y :: proc(w: ^Widget, parent_rect: rl.Rectangle) -> f32 {
+	switch &v in w {
 	case Rectangle:
-		return rectangle_y(&w.(Rectangle), parent_rect)
+		return rectangle_y(&v, parent_rect)
 	case Box:
-		return rectangle_y(&w.(Box), parent_rect)
+		return rectangle_y(&v, parent_rect)
 	case Button:
-		return rectangle_y(&w.(Button), parent_rect)
+		return rectangle_y(&v, parent_rect)
 	case Text:
-		return text_y(&w.(Text), parent_rect)
+		return text_y(&v, parent_rect)
+	case Row:
+		return row_y(&v, parent_rect)
+	case Column:
+		return column_y(&v, parent_rect)
 	}
 
 	return 0.0
 }
 
 get_width :: proc(w: ^Widget, parent_rect: rl.Rectangle) -> f32 {
-	switch _ in w {
+	switch &v in w {
 	case Rectangle:
-		return rectangle_width(&w.(Rectangle), parent_rect)
+		return rectangle_width(&v, parent_rect)
 	case Box:
-		return rectangle_width(&w.(Box), parent_rect)
+		return rectangle_width(&v, parent_rect)
 	case Button:
-		return rectangle_width(&w.(Button), parent_rect)
+		return rectangle_width(&v, parent_rect)
 	case Text:
-		return f32(text_width(&w.(Text)))
+		return f32(text_width(&v))
+	case Row:
+		return row_width(&v)
+	case Column:
+		return column_width(&v, parent_rect)
 	}
 
 	return 0.0
 }
 
 get_height :: proc(w: ^Widget, parent_rect: rl.Rectangle) -> f32 {
-	switch _ in w {
+	switch &v in w {
 	case Rectangle:
-		return rectangle_height(&w.(Rectangle), parent_rect)
+		return rectangle_height(&v, parent_rect)
 	case Box:
-		return rectangle_height(&w.(Box), parent_rect)
+		return rectangle_height(&v, parent_rect)
 	case Button:
-		return rectangle_height(&w.(Button), parent_rect)
+		return rectangle_height(&v, parent_rect)
 	case Text:
-		return f32(text_height(&w.(Text)))
+		return f32(text_height(&v))
+	case Row:
+		return row_height(&v, parent_rect)
+	case Column:
+		return column_height(&v)
 	}
 
 	return 0.0
 }
 
-widget_draw :: proc(w: ^Widget, parent_rect: rl.Rectangle){
-	switch _ in w {
+widget_draw :: proc(w: ^Widget, parent_rect: rl.Rectangle) {
+	switch &v in w {
 	case Rectangle:
-		rectangle_draw(&w.(Rectangle), parent_rect)
+		rectangle_draw(&v, parent_rect)
 	case Box:
-		box_draw(&w.(Box), parent_rect)
+		box_draw(&v, parent_rect)
 	case Button:
-		button_draw(&w.(Button), parent_rect)
+		button_draw(&v, parent_rect)
 	case Text:
-		text_draw(&w.(Text), parent_rect)
+		text_draw(&v, parent_rect)
+	case Row:
+		row_draw(&v, parent_rect)
+	case Column:
+		column_draw(&v, parent_rect)
 	}
 }
 
-is_pressed :: proc(w: ^Widget) -> bool{
-	switch _ in w{
-	case Rectangle, Box, Text:
+get_pos :: proc(w: ^Widget) -> rl.Vector2 {
+	switch v in w {
+	case Rectangle:
+		return v.pos
+	case Box:
+		return v.pos
+	case Button:
+		return v.pos
+	case Text:
+		return v.pos
+	case Row:
+		return v.pos
+	case Column:
+		return v.pos
+	}
+	return rl.Vector2{0, 0}
+}
+
+set_pos :: proc(w: ^Widget, pos: rl.Vector2) {
+	switch &v in w {
+	case Rectangle:
+		v.pos = pos
+	case Box:
+		v.pos = pos
+	case Button:
+		v.pos = pos
+	case Text:
+		v.pos = pos
+	case Row:
+		v.pos = pos
+	case Column:
+		v.pos = pos
+	}
+}
+
+is_pressed :: proc(w: ^Widget) -> bool {
+	switch v in w {
+	case Rectangle, Box, Text, Row, Column:
 		return false
 	case Button:
-		return w.(Button).pressed
+		return v.pressed
 	}
 	return false
 }

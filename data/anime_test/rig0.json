@@ -1,0 +1,999 @@
+{
+	"frames": {
+		"mouth": {
+			"src": "frames/mouth.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					35.19921875,
+					25.59765625
+				],
+				"width": 34.00000000,
+				"height": 13.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"shirt": {
+			"src": "frames/shirt.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					171.20312500,
+					164.80078125
+				],
+				"width": 204.00000000,
+				"height": 158.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"hair_back": {
+			"src": "frames/hair_back.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					-19.19921875,
+					8.00000000
+				],
+				"width": 231.00000000,
+				"height": 323.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"face": {
+			"src": "frames/face.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					168.00000000,
+					11.19921875
+				],
+				"width": 175.00000000,
+				"height": 111.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"hair_front": {
+			"src": "frames/hair_front.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					12.79687500,
+					-12.80078125
+				],
+				"width": 159.00000000,
+				"height": 193.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"nose": {
+			"src": "frames/nose.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					36.80078125,
+					-8.00390625
+				],
+				"width": 9.00000000,
+				"height": 23.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"neck": {
+			"src": "frames/neck.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					-9.59765625,
+					17.59765625
+				],
+				"width": 55.00000000,
+				"height": 47.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"eyes": {
+			"src": "frames/eyes.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					25.60156250,
+					-25.59765625
+				],
+				"width": 113.00000000,
+				"height": 35.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		},
+		"idk": {
+			"src": "frames/idk.PNG",
+			"time": 0.00000000,
+			"transform": {
+				"lerp_data": {
+					"x_mode": "None",
+					"y_mode": "None",
+					"rotation_mode": "None",
+					"width_mode": "None",
+					"height_mode": "None",
+					"spring": 0.00000000,
+					"damp": 0.00000000,
+					"strength": 0.00000000
+				},
+				"position": [
+					-11.19531250,
+					23.99609375
+				],
+				"width": 72.00000000,
+				"height": 38.00000000,
+				"rotation": 0.00000000
+			},
+			"rand_transform": {
+				"x": [
+					0.00000000,
+					0.00000000
+				],
+				"y": [
+					0.00000000,
+					0.00000000
+				],
+				"width": [
+					0.00000000,
+					0.00000000
+				],
+				"height": [
+					0.00000000,
+					0.00000000
+				],
+				"rotation": [
+					0.00000000,
+					0.00000000
+				]
+			},
+			"flip_horizontal": false,
+			"flip_vertical": false,
+			"overwrite_tint": false,
+			"tint": [
+				0,
+				0,
+				0,
+				0
+			]
+		}
+	},
+	"sections": {
+		"mouth": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"mouth"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "face",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"hair_front": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"hair_front"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				1.50000000,
+				-88.90234375
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.10000000,
+			"y_softness": 0.20000000,
+			"connect_to_section": "face",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "DampedOscillator",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 40.00000000,
+				"damp": 10.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"shirt": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"shirt"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"face": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": -1,
+			"frames": [
+				"face"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"volume_transforms": [
+				{
+					"lerp_data": {
+						"x_mode": "None",
+						"y_mode": "None",
+						"rotation_mode": "None",
+						"width_mode": "None",
+						"height_mode": "None",
+						"spring": 0.00000000,
+						"damp": 0.00000000,
+						"strength": 0.00000000
+					},
+					"volume": -40.00000000,
+					"x": 0.00000000,
+					"y": 10.00000000,
+					"width": 0.00000000,
+					"height": 0.00000000,
+					"rotation": 0.00000000
+				},
+				{
+					"lerp_data": {
+						"x_mode": "None",
+						"y_mode": "None",
+						"rotation_mode": "None",
+						"width_mode": "None",
+						"height_mode": "None",
+						"spring": 0.00000000,
+						"damp": 0.00000000,
+						"strength": 0.00000000
+					},
+					"volume": -20.00000000,
+					"x": 0.00000000,
+					"y": 0.00000000,
+					"width": 0.00000000,
+					"height": 0.00000000,
+					"rotation": 0.00000000
+				}
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "SmoothStep",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 10.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"idk": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"idk"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				4.69531250,
+				15.10156250
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"eyes": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"eyes"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "face",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"neck": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"neck"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"hair_back": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"hair_back"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				-0.10546875,
+				-144.90234375
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.10000000,
+			"y_softness": 0.20000000,
+			"connect_to_section": "face",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "DampedOscillator",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 60.00000000,
+				"damp": 10.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		},
+		"nose": {
+			"visible": true,
+			"loop_mode": "Loop",
+			"reset_on_enter": false,
+			"z_index": 0,
+			"priority": 0,
+			"frames": [
+				"nose"
+			],
+			"window_anchor": "Center_Center",
+			"window_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"transform_anchor": "Center_Center",
+			"transform_anchor_offset": [
+				0.00000000,
+				0.00000000
+			],
+			"volume_transforms": [
+
+			],
+			"x_softness": 0.00000000,
+			"y_softness": 0.00000000,
+			"connect_to_section": "face",
+			"final_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"final_vt_lerp_data": {
+				"x_mode": "None",
+				"y_mode": "None",
+				"rotation_mode": "None",
+				"width_mode": "None",
+				"height_mode": "None",
+				"spring": 0.00000000,
+				"damp": 0.00000000,
+				"strength": 0.00000000
+			},
+			"on_section_end": [
+
+			]
+		}
+	},
+	"params": {
+
+	},
+	"binds": {
+
+	},
+	"on_talk": [
+
+	],
+	"on_blink": [
+
+	],
+	"on_action": [
+
+	],
+	"on_idle": [
+
+	],
+	"idle_time": 10.00000000,
+	"blink_time": 10.00000000,
+	"position_offset": [
+		0.00000000,
+		0.00000000
+	],
+	"rotation_offset": [
+		0.00000000,
+		0.00000000
+	],
+	"preserve_talk_time": 0.50000000,
+	"volume_threshhold": -50.00000000,
+	"rig_path": "./data/anime_test"
+}

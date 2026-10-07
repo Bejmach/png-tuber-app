@@ -7,6 +7,7 @@ Rectangle :: struct {
 	width:                     f32,
 	is_parent_relative_height: bool,
 	height:                    f32,
+	pos:                       rl.Vector2,
 	v_anchor:                  VAnchor,
 	h_anchor:                  HAnchor,
 	color:                     rl.Color,
@@ -28,11 +29,11 @@ rectangle_x :: proc(rect: ^Rectangle, parent_rect: rl.Rectangle) -> f32 {
 
 	switch rect.h_anchor {
 	case .Left:
-		return parent_x
+		return parent_x + rect.pos.x
 	case .Center:
-		return parent_x + ((parent_width - width) / 2)
+		return parent_x + rect.pos.x + ((parent_width - width) / 2)
 	case .Right:
-		return parent_x + (parent_width - width)
+		return parent_x + rect.pos.x + (parent_width - width)
 	}
 	return 0.0
 }
@@ -45,11 +46,11 @@ rectangle_y :: proc(rect: ^Rectangle, parent_rect: rl.Rectangle) -> f32 {
 
 	switch rect.v_anchor {
 	case .Top:
-		return parent_y
+		return parent_y + rect.pos.y
 	case .Center:
-		return parent_y + ((parent_height - height) / 2)
+		return parent_y + rect.pos.y + ((parent_height - height) / 2)
 	case .Bottom:
-		return parent_y + (parent_height - height)
+		return parent_y + rect.pos.y + (parent_height - height)
 	}
 	return 0.0
 }

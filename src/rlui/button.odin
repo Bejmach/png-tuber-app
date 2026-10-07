@@ -10,8 +10,10 @@ Button :: struct {
 	pressed: bool,
 }
 
-button_draw :: proc(button: ^Button, parent_rect: rl.Rectangle) {
+button_draw :: proc(button: ^Button, parent_rect: rl.Rectangle, offset := rl.Vector2{0, 0}) {
 	rect := rectangle_rect(button, parent_rect)
+	rect.x += offset.x
+	rect.y += offset.y
 	mouse_position := rl.GetMousePosition()
 
 	color: rl.Color

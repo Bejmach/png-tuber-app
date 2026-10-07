@@ -415,6 +415,8 @@ app_process_editor :: proc(app: ^App, delta: f32) {
 				if app.editor_data.is_frame_moving {
 					f_min_x += app.editor_data.mouse_transform.x
 					f_min_y += app.editor_data.mouse_transform.y
+					f_max_x += app.editor_data.mouse_transform.x
+					f_max_y += app.editor_data.mouse_transform.y
 				}
 
 				if f_min_x < min_x {min_x = f_min_x}
@@ -949,22 +951,31 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 	bar_box: rlui.Box
 
-	bar_box.width = 0.9
+	bar_box.width = 1.0
 	bar_box.is_parent_relative_width = true
 	bar_box.h_anchor = .Right
 	bar_box.height = 30.0
 	bar_box.color = rl.BLACK
 
-	button: rlui.Button
+	button_1: rlui.Button
 
-	button.width = 0.3
-	button.is_parent_relative_width = true
-	button.height = 1.0
-	button.is_parent_relative_height = true
-	button.h_anchor = .Center
-	button.color = rl.GRAY
-	button.hover_color = rl.WHITE
-	button.active_color = rl.RED
+	button_1.width = 100
+	button_1.height = 30
+	button_1.is_parent_relative_height = false
+	button_1.h_anchor = .Left
+	button_1.color = rl.GRAY
+	button_1.hover_color = rl.WHITE
+	button_1.active_color = rl.RED
+
+	button_2: rlui.Button
+
+	button_2.width = 100
+	button_2.height = 30
+	button_2.is_parent_relative_height = false
+	button_2.h_anchor = .Left
+	button_2.color = rl.GRAY
+	button_2.hover_color = rl.WHITE
+	button_2.active_color = rl.RED
 
 	text: rlui.Text
 	text.content = "Button"
@@ -975,19 +986,30 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 	text_widget := rlui.Widget(text)
 
-	button.child = &text_widget
+	button_1.child = &text_widget
+	button_2.child = &text_widget
 
-	button_widget := rlui.Widget(button)
+	button_1_widget := rlui.Widget(button_1)
+	button_2_widget := rlui.Widget(button_2)
 
-	bar_box.child = &button_widget
+	row: rlui.Column
+	row.spacing = 5.0
+	row.width = 120
+	row.is_parent_relative_width = false
+	row.h_anchor = .Center
+	row.children = {&button_1_widget, &button_2_widget}
 
+	row_widget := rlui.Widget(row)
+
+	bar_box.child = &row_widget
+	
 	bar_widget := rlui.Widget(bar_box)
 
 	screen_rect := rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
 
 	rlui.widget_draw(&bar_widget, screen_rect)
 
-	fmt.println(rlui.is_pressed(&button_widget))
+	//fmt.println(rlui.is_pressed(&button_widget))
 
 	{
 		for z_index in app.rig_status.z_layers {
