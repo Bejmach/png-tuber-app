@@ -951,21 +951,43 @@ draw_editor :: proc(app: ^App, delta: f32) {
 
 	bar_box.width = 0.9
 	bar_box.is_parent_relative_width = true
-	bar_box.h_anchor = .Left
+	bar_box.h_anchor = .Right
 	bar_box.height = 30.0
-
-	bar_widget := rlui.Widget(bar_box)
+	bar_box.color = rl.BLACK
 
 	button: rlui.Button
-	button.parent = &bar_widget
 
-	button.width = 150
+	button.width = 0.3
+	button.is_parent_relative_width = true
 	button.height = 1.0
 	button.is_parent_relative_height = true
 	button.h_anchor = .Center
+	button.color = rl.GRAY
+	button.hover_color = rl.WHITE
+	button.active_color = rl.RED
 
-	rlui.box_draw(&bar_box, rl.BLACK)
-	fmt.println(rlui.button_draw(&button, rl.GRAY, rl.WHITE, rl.BLACK))
+	text: rlui.Text
+	text.content = "Button"
+	text.color = rl.BLUE
+	text.font_size = 16
+	text.h_anchor = .Center
+	text.v_anchor = .Center
+
+	text_widget := rlui.Widget(text)
+
+	button.child = &text_widget
+
+	button_widget := rlui.Widget(button)
+
+	bar_box.child = &button_widget
+
+	bar_widget := rlui.Widget(bar_box)
+
+	screen_rect := rl.Rectangle{0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight())}
+
+	rlui.widget_draw(&bar_widget, screen_rect)
+
+	fmt.println(rlui.is_pressed(&button_widget))
 
 	{
 		for z_index in app.rig_status.z_layers {

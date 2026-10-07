@@ -3,31 +3,35 @@ package rlui
 import rl "vendor:raylib"
 
 Button :: struct {
-	using box: Box,
+	using box:    Box,
+	hover_color:  rl.Color,
+	active_color: rl.Color,
+
+	pressed: bool,
 }
 
-button_draw :: proc(button: ^Button, inactive_color: rl.Color, hover_color: rl.Color, active_color: rl.Color) -> bool{
-	rect := box_rect(button)
+button_draw :: proc(button: ^Button, parent_rect: rl.Rectangle) {
+	rect := rectangle_rect(button, parent_rect)
 	mouse_position := rl.GetMousePosition()
-	
+
 	color: rl.Color
+	button.pressed = false
 
-	pressed := false
-
-	if is_position_in_rect(mouse_position, rect){
-		if rl.IsMouseButtonDown(.LEFT){
-			color = active_color
+	if is_position_in_rect(mouse_position, rect) {
+		if rl.IsMouseButtonDown(.LEFT) {
+			color = button.active_color
 		} else if rl.IsMouseButtonReleased(.LEFT) {
-			color = active_color
-			pressed = true
+			color = button.active_color
+			button.pressed = true
 		} else {
-			color = hover_color
+			color = button.hover_color
 		}
 	} else {
-		color = inactive_color
+		color = button.color
 	}
 
 	rl.DrawRectangleRec(rect, color)
-	return pressed
+	if button.child != nil{
+		widget_draw(button.child, rect)
+	}
 }
-
